@@ -6,22 +6,26 @@ Pick a legendary club squad and play the match yourself: real-time 3D 11v11 foot
 
 Open `index.html` in a browser, or deploy the repo to Vercel (no build step, it is a static site).
 
-### Controls
+### Controls (FC Mobile scheme)
 
-| Action | Touch | Keyboard |
+| Button | Tap / hold | Swipe while holding |
 | --- | --- | --- |
-| Move | Drag anywhere on the left half of the screen | W A S D or arrows |
-| Pass / Switch player | Pass | J |
-| Shoot / Tackle | Shoot (hold longer for more power) | K or Space |
-| Through ball / Teammate press | Through | L |
-| Sprint | Sprint (hold) | Shift |
-| Skill move / Slide tackle | Skill | I |
+| **Pass** | Ground pass to the teammate the stick points at | Up: lob or cross · Down: pass and go · Right: driven pass |
+| **Through** | Through ball into the runner's path (clearance in your own third) | Up: lofted through ball |
+| **Shoot** | Hold for power, release to shoot | Down: finesse · Up: chip · Left: fake shot |
+| **Sprint & Skill** | Hold to sprint, tap for a skill move | Any direction: forward knock-on, drag back, or sidestep feint |
+| **Switch** (defending) | Switch to the player nearest the ball | |
+| **Slide** (defending) | Slide tackle | |
+| **2nd Def** (defending) | Hold: a teammate presses the ball carrier | Down: keeper rush |
+| **Sprint & Tackle** (defending) | Hold to close the carrier down, tap to stand tackle | |
 
-The buttons change with possession: with the ball they pass, shoot, play through balls and do skill moves; without it they switch player, tackle, send a teammate to press and slide tackle.
+Keyboard: WASD/arrows move · J pass, U lob, Y pass and go · L through, O lofted through · K shoot, F finesse, C chip, G fake · Shift sprint, E skill / tackle · R keeper rush · P pause.
 
-- Shots without sprint curl in as finesse shots; hold the stick toward a post to aim.
-- Press pass or shoot while a pass is coming to you to play it first time.
-- Cross from near the byline to set up headers.
+Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
+
+### Player ratings
+
+Outfield players have PAC, SHO, PAS, DRI, DEF and PHY; keepers have DIV, HAN, KIC, REF, SPD and POS. They drive the gameplay: pace sets top speed and acceleration, shooting sets power and accuracy, passing sets accuracy, dribbling sets close control, turning, first touch and skill-move success, defending sets tackle and interception success, and physical sets strength in duels, headers and stamina.
 
 ### Online 1v1
 
