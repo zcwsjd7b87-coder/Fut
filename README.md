@@ -6,22 +6,33 @@ Pick a legendary club squad and play the match yourself: real-time 3D football w
 
 Open `index.html` in a browser, or deploy the repo to Vercel (no build step, it is a static site).
 
+### Lobby
+
+The home screen is a lobby over the 3D stadium: your club lined up on the pitch with its star player doing keepy-ups, your club card and star player card, a quick match against Senpai (match type, level, half length, opponent), Online 1v1, Squad and Controls. Tap your name at the top to change it; your record against Senpai is kept on this device.
+
 ### Controls (FC Mobile scheme)
 
-| Button | Tap / hold | Swipe while holding |
-| --- | --- | --- |
-| **Pass** | Ground pass to the teammate the stick points at | Up: lob or cross · Down: pass and go · Right: driven pass |
-| **Through** | Through ball into the runner's path (clearance in your own third) | Up: lofted through ball |
-| **Shoot** | Hold for power, release to shoot | Down: finesse · Up: chip · Left: fake shot |
-| **Sprint & Skill** | Hold to sprint, tap for a skill move | Any direction: forward knock-on, drag back, or sidestep feint |
-| **Switch** (defending) | Switch to the player nearest the ball | |
-| **Slide** (defending) | Slide tackle | |
-| **2nd Def** (defending) | Hold: a teammate presses the ball carrier | Down: keeper rush |
-| **Sprint & Tackle** (defending) | Hold to close the carrier down, tap to stand tackle | |
+Every action button reads a swipe made while you hold it: tap for the basic action, or swipe before you let go. Hold a button for a moment in a match to see its swipes (you can turn the hints off from the pause menu).
 
-Keyboard: WASD/arrows move · J pass, U lob, Y pass and go · L through, O lofted through · K shoot, F finesse, C chip, G fake · Shift sprint, E skill / tackle · R keeper rush · P pause.
+| Button | Tap | Swipe ↑ | Swipe ↓ | Swipe ← | Swipe → |
+| --- | --- | --- | --- | --- | --- |
+| **Pass** | Ground pass to the teammate the stick points at | Lob (cross near the box) | Pass and go | Driven lob | Driven pass |
+| **Through** | Through ball into the runner's path (clearance in your own third) | Lofted through | Trigger a run (no pass) | Dinked through | Driven through |
+| **Shoot** (hold for power) | Shot | Chip | Finesse | Fake shot | Driven low shot |
+| **Sprint & Skill** (hold to sprint) | Step over | Rainbow flick | Roulette | Drag back | Heel to heel |
+| **2nd Def** (defending) | Hold: a teammate presses the carrier | | Keeper rush | | |
+
+Defending: **Switch**, **Slide**, and **Sprint & Tackle** (hold to jockey and close down, tap to stand tackle).
+
+Keyboard: WASD/arrows move · Pass J, U lob, Y pass and go, H driven lob, N driven · Through L, O lofted, R run / keeper rush, I dinked, M driven · Shoot K or Space, C chip, F finesse, G fake, B driven · Shift sprint, E step over / tackle, Q rainbow, Z roulette, X drag back, V heel to heel · Enter skip · P pause.
+
+Receivers hold their spot and come short to meet the ball instead of drifting away from it; runners making a run are played into their path. Passes, first touches, shots, skills, tackles, throw-ins, jockeying, shielding, keeper catches and goal celebrations all have their own animations, and each player has their own skin tone, hairstyle and facial hair.
 
 The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right corner, Pass (blue) to its left, Through (yellow) above Pass and Shoot (red) above Sprint & Skill, with the joystick on the left. Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
+
+### Intro, replays and Skip
+
+Matches open with a stadium fly-in and line-up banner. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips the intro, celebrations, replays and half-time; online, the host can skip celebrations and half-time.
 
 ### Player ratings
 
