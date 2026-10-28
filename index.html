@@ -238,7 +238,7 @@ input.code{flex:1;min-width:0;background:var(--deep);border:1px solid var(--line
       <p class="lede">Pick a legendary squad and play the match yourself. Stick on the left, pass and shoot on the right, against the computer or a friend online.</p>
     </div>
     <div class="modes">
-      <button class="mode" id="goCpu" type="button"><span class="mode-k">Solo</span><span class="mode-t">Play vs CPU</span><span class="mode-d">Choose your club and an opponent, set the difficulty, kick off.</span><span class="mode-go" aria-hidden="true">›</span></button>
+      <button class="mode" id="goCpu" type="button"><span class="mode-k">Solo</span><span class="mode-t">Play vs Senpai</span><span class="mode-d">Pick your club and Senpai's, choose 11 v 11, 5 v 5 or 3 v 3, set how good Senpai is, kick off.</span><span class="mode-go" aria-hidden="true">›</span></button>
       <button class="mode" id="goOnline" type="button"><span class="mode-k">1 v 1</span><span class="mode-t">Play a friend online</span><span class="mode-d">Open a room, send your friend the code and play live, one team each.</span><span class="mode-go" aria-hidden="true">›</span></button>
     </div>
     <section class="howto" aria-labelledby="howtoH">
@@ -271,7 +271,8 @@ input.code{flex:1;min-width:0;background:var(--deep);border:1px solid var(--line
       <div>
         <div class="squads" id="squadGrid"></div>
         <div class="cpu-opts" id="cpuOpts" hidden>
-          <div><span class="opt-label" id="diffL">Difficulty</span><div class="seg" role="group" aria-labelledby="diffL" id="diffSeg"></div></div>
+          <div><span class="opt-label" id="sizeL">Match type</span><div class="seg" role="group" aria-labelledby="sizeL" id="sizeSeg"></div></div>
+          <div><span class="opt-label" id="diffL">Senpai level</span><div class="seg" role="group" aria-labelledby="diffL" id="diffSeg"></div></div>
           <div><span class="opt-label" id="lenL">Half length</span><div class="seg" role="group" aria-labelledby="lenL" id="lenSeg"></div></div>
         </div>
       </div>
@@ -322,13 +323,20 @@ var RCL = (function () {
   'use strict';
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const hyp = Math.hypot, rnd = Math.random;
-  const FL = 105, FW = 68, GY = 34, GHW = 3.66, BARH = 2.44, BOXD = 16.5, BOXW = 20.16, G = 9.81;
+  const G = 9.81;
+  // pitch per match type: [length, width, goal half-width, crossbar height, box depth, box half-width]
+  const DIMS = { 11: [105, 68, 3.66, 2.44, 16.5, 20.16], 5: [50, 32, 2.5, 2.2, 8, 8], 3: [36, 24, 1.8, 2.0, 6, 6] };
+  let FL, FW, GY, GHW, BARH, BOXD, BOXW, K;
+  function setDims(n) { const d = DIMS[n] || DIMS[11]; [FL, FW, GHW, BARH, BOXD, BOXW] = d; GY = FW / 2; K = FL / 105; return { n: DIMS[n] ? n : 11, FL, FW, GY, GHW, BARH, BOXD, BOXW, K }; }
+  setDims(11);
 
   // Formation slots: [depth from own goal 0..1, width 0..1 (0.84 = right side when attacking), position]
   const FORMS = {
     '4-3-3': [[.04,.5,'GK'],[.24,.84,'RB'],[.19,.62,'CB'],[.19,.38,'CB'],[.24,.16,'LB'],[.44,.7,'CM'],[.36,.5,'DM'],[.44,.3,'CM'],[.68,.84,'RW'],[.75,.5,'ST'],[.68,.16,'LW']],
     '4-4-2': [[.04,.5,'GK'],[.24,.84,'RB'],[.19,.62,'CB'],[.19,.38,'CB'],[.24,.16,'LB'],[.5,.86,'RM'],[.42,.6,'CM'],[.42,.4,'CM'],[.5,.14,'LM'],[.72,.6,'ST'],[.72,.4,'ST']],
     '4-2-3-1': [[.04,.5,'GK'],[.24,.84,'RB'],[.19,.62,'CB'],[.19,.38,'CB'],[.24,.16,'LB'],[.37,.62,'DM'],[.37,.38,'DM'],[.6,.82,'RM'],[.58,.5,'AM'],[.6,.18,'LM'],[.76,.5,'ST']],
+    '5': [[.04,.5,'GK'],[.26,.3,'CB'],[.26,.7,'CB'],[.5,.5,'CM'],[.74,.5,'ST']],
+    '3': [[.04,.5,'GK'],[.38,.32,'CM'],[.66,.68,'ST']],
     '4-3-2-1': [[.04,.5,'GK'],[.24,.84,'RB'],[.19,.62,'CB'],[.19,.38,'CB'],[.24,.16,'LB'],[.42,.72,'CM'],[.36,.5,'DM'],[.42,.28,'CM'],[.6,.64,'AM'],[.6,.36,'AM'],[.76,.5,'ST']]
   };
 
@@ -360,6 +368,16 @@ var RCL = (function () {
       xi: [['Ederson',88,86,82,93,88,64,84],['Walker',85,92,60,78,78,82,84],['Dias',89,66,40,72,68,90,88],['Akanji',84,74,40,74,70,84,82],['Aké',84,74,50,76,76,84,78],['De Bruyne',91,72,88,95,88,64,78],['Rodri',89,60,76,86,82,86,84],['Gündoğan',86,64,82,88,86,70,70],['B. Silva',88,78,78,88,92,62,70],['Haaland',91,89,93,66,80,44,88],['Grealish',85,78,76,84,88,42,70]] }
   ];
   const STAT_KEYS = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'], GK_KEYS = ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS'];
+  // small-sided squads: keeper plus the best players for each slot of the 5- or 3-a-side shape
+  function smallSquad(sq, n) {
+    if (n !== 5 && n !== 3) return sq;
+    const f = FORMS[sq.form], rows = sq.xi.map((d, i) => ({ d, pos: f[i][2], i })).filter(r => r.i > 0);
+    const DEF = ['CB', 'RB', 'LB'], MID = ['CM', 'DM', 'AM', 'RM', 'LM'], ATT = ['ST', 'RW', 'LW'];
+    const used = new Set(), take = (set, key) => { const c = rows.filter(r => !used.has(r.i) && set.includes(r.pos)).sort((a, b) => key(b.d) - key(a.d))[0] || rows.filter(r => !used.has(r.i)).sort((a, b) => b.d[1] - a.d[1])[0]; used.add(c.i); return c.d; };
+    const pick = n === 5 ? [take(DEF, d => d[6]), take(DEF, d => d[6]), take(MID, d => d[1]), take(ATT, d => d[1])] : [take(MID, d => d[1]), take(ATT, d => d[1])];
+    return Object.assign({}, sq, { form: String(n), xi: [sq.xi[0]].concat(pick), base: sq.id });
+  }
+  function matchSquads(a, b, n) { return [smallSquad(a, n), smallSquad(b, n)]; }
   const SQ = {};
   SQUADS.forEach(s => { SQ[s.id] = s; });
   const teamOvr = sq => Math.round(sq.xi.reduce((a, p) => a + p[1], 0) / 11);
@@ -379,9 +397,10 @@ var RCL = (function () {
   const ACTS = ['', 'kick', 'slide', 'dive', 'head', 'celebrate', 'fall', 'skill', 'throw', 'fake', 'tackle'];
 
   function newMatch(cfg) {
+    const dims = setDims(cfg.size || 11);
     const kits = resolveKits(cfg.sqA, cfg.sqB);
     const M = {
-      cfg, t: 0, teams: [], P: [], score: [0, 0], stats: { shots: [0, 0], ot: [0, 0], poss: [0, 0] }, goals: [],
+      cfg, dims, t: 0, teams: [], P: [], score: [0, 0], stats: { shots: [0, 0], ot: [0, 0], poss: [0, 0] }, goals: [],
       clock: 0, half: 1, phase: 'kickoff', phaseT: 1.4, ev: '', evK: '', evN: 0, kc: 0, nextKick: 0,
       humans: (cfg.humans || []).map(h => ({ team: h.team, remote: !!h.remote, ctrl: null, pressing: false, swCd: 0, recvLock: 0, queued: null, inp: emptyInput() })),
       roles: { chaser: [null, null], presser: [null, null], cover: [null, null] }, dbg: { pass: 0, tk: 0, tkw: 0, take: 0, intc: 0, pa: [0, 0], pok: [0, 0], dribGoal: 0 }
@@ -391,7 +410,7 @@ var RCL = (function () {
       const T = { sq, kit: kits[ti], gk: sq.gk, dir: ti ? -1 : 1, players: [] };
       sq.xi.forEach((d, i) => {
         const gk = i === 0;
-        const p = { id: ti * 11 + i, team: ti, i, name: d[0], ovr: d[1], slot: form[i], gk,
+        const p = { id: ti * sq.xi.length + i, team: ti, i, name: d[0], ovr: d[1], slot: form[i], gk,
           x: 0, y: 0, vx: 0, vy: 0, fx: T.dir, fy: 0, aiDir: [T.dir, 0], aiSpr: false, sta: 100 };
         if (gk) { p.div = d[2]; p.han = d[3]; p.kic = d[4]; p.ref = d[5]; p.spd = d[6]; p.gpos = d[7]; p.pac = d[6]; p.sho = d[4] * 0.7; p.pas = d[4]; p.dri = 55; p.def = 60; p.phy = 78; }
         else { p.pac = d[2]; p.sho = d[3]; p.pas = d[4]; p.dri = d[5]; p.def = d[6]; p.phy = d[7]; }
@@ -436,7 +455,7 @@ var RCL = (function () {
       }
       if (ti !== kt) for (const p of T.players) {
         const dx = p.x - FL / 2, dy = p.y - GY, d = hyp(dx, dy);
-        if (d < 9.6) { const k = 9.6 / (d || 1); p.x = FL / 2 + dx * k; p.y = GY + dy * k; }
+        if (d < 9.6 * K) { const k = 9.6 * K / (d || 1); p.x = FL / 2 + dx * k; p.y = GY + dy * k; }
       }
     });
     const T = M.teams[kt];
@@ -460,15 +479,15 @@ var RCL = (function () {
     tk.x = x - ux * 0.55; tk.y = y - uy * 0.55; tk.fx = ux; tk.fy = uy; tk.vx = tk.vy = 0;
     tk.frozen = true; tk.protect = 2.2; tk.mustPass = true; tk.holdT = 0;
     b.owner = tk; b.last = tk; b.lastTeam = team;
-    const minD = type === 'throw' ? 3 : 9.15;
+    const minD = type === 'throw' ? 3 : 9.15 * Math.max(0.5, K);
     for (const p of M.teams[1 - team].players) {
       const dx = p.x - x, dy = p.y - y, d = hyp(dx, dy);
       if (d < minD) { const k = minD / (d || 1); p.x = clamp(x + dx * k, -1, FL + 1); p.y = clamp(y + dy * k, -1, FW + 1); }
     }
     if (type === 'corner') {
       const gx = T.dir > 0 ? FL : 0;
-      for (const p of T.players) if (!p.gk && p !== tk && p.slot[0] > 0.35) p.box = { x: gx - T.dir * (5 + rnd() * 9), y: GY + (rnd() - 0.5) * 18, t: 4 };
-      for (const p of M.teams[1 - team].players) if (!p.gk) p.box = { x: gx - T.dir * (2 + rnd() * 10), y: GY + (rnd() - 0.5) * 22, t: 4 };
+      for (const p of T.players) if (!p.gk && p !== tk && p.slot[0] > 0.35) p.box = { x: gx - T.dir * (5 + rnd() * 9) * K, y: GY + (rnd() - 0.5) * 18 * K, t: 4 };
+      for (const p of M.teams[1 - team].players) if (!p.gk) p.box = { x: gx - T.dir * (2 + rnd() * 10) * K, y: GY + (rnd() - 0.5) * 22 * K, t: 4 };
     }
     setEv(M, type === 'corner' ? 'Corner' : type === 'gk' ? 'Goal kick' : 'Throw-in', 'out');
     for (const h of M.humans) if (h.team === team) h.ctrl = tk.gk ? nearestOutfield(M, team, x, y) : tk;
@@ -558,7 +577,7 @@ var RCL = (function () {
     for (const m of T.players) {
       if (m === p) continue;
       const dx = m.x - p.x, dy = m.y - p.y, d = hyp(dx, dy);
-      if (d < 3 || d > (m.gk ? 28 : 50)) continue;
+      if (d < 3 || d > (m.gk ? 28 : 50) * Math.max(K, 0.6)) continue;
       let od = 99; for (const o of opp) od = Math.min(od, hyp(o.x - m.x, o.y - m.y));
       const blocked = laneBlocked(M, p, m.x, m.y);
       let s;
@@ -638,7 +657,7 @@ var RCL = (function () {
     launch(M, p, tx, ty, h * 1.03, vz, m, pErr(M, p, true) * 0.9);
     m.runTo = { x: tx, y: ty, t: 2 };
   }
-  function crossZone(p, dir) { const gx = dir > 0 ? FL : 0; return Math.abs(gx - p.x) < 24 && Math.abs(p.y - GY) > 13; }
+  function crossZone(p, dir) { const gx = dir > 0 ? FL : 0; return Math.abs(gx - p.x) < 24 * K && Math.abs(p.y - GY) > 13 * Math.max(K, 0.45); }
   // kind: ground | driven | lob | go | thru | lobthru
   function doPass(M, p, dvx, dvy, kind, allowSpace) {
     const through = kind === 'thru' || kind === 'lobthru';
@@ -658,7 +677,7 @@ var RCL = (function () {
     if (kind === 'lob' && crossZone(p, dir) && Math.abs(gxx - m.x) < 18 && Math.abs(m.y - GY) < 15 && d0 > 8) { cross(M, p, m); return true; }
     let lob = kind === 'lob' || kind === 'lobthru';
     if (through) {
-      const lead = 5 + m.pac * 0.05;
+      const lead = (5 + m.pac * 0.05) * Math.max(K, 0.55);
       const tx = clamp(m.x + dir * lead, 2, FL - 2), ty = clamp(m.y + (GY - m.y) * 0.12, 3, FW - 3);
       m.runTo = { x: tx, y: ty, t: 3.2 };
       if (!lob && !human && laneBlocked(M, p, tx, ty)) lob = true;
@@ -668,7 +687,7 @@ var RCL = (function () {
       return true;
     }
     if (!lob && !human && d0 > 14 && laneBlocked(M, p, m.x, m.y)) lob = true;
-    if (!lob && d0 > 36) lob = true;
+    if (!lob && d0 > 36 * Math.max(K, 0.6)) lob = true;
     if (lob) { const sa = solveAir(p, m, d => clamp(3.5 + d * 0.16, 5, 12)); launch(M, p, sa.tx, sa.ty, sa.h, sa.vz, m, pErr(M, p, true)); }
     else { const sg = solveGround(p, m, kind === 'driven' ? 13 : 9); launch(M, p, sg.tx, sg.ty, sg.v0, 0, m, pErr(M, p, false)); }
     if (kind === 'go') p.goRun = { x: clamp(p.x + dir * 14, 2, FL - 2), y: p.y + (GY - p.y) * 0.25, t: 3 };
@@ -708,23 +727,24 @@ var RCL = (function () {
     }
   }
   function clearance(M, p) {
-    const dir = M.teams[p.team].dir, tx = clamp(p.x + dir * (38 + rnd() * 10), 5, FL - 5), ty = p.y < GY ? 8 + rnd() * 12 : FW - 8 - rnd() * 12;
+    const dir = M.teams[p.team].dir, tx = clamp(p.x + dir * (38 + rnd() * 10) * K, 3, FL - 3), ty = p.y < GY ? FW * (0.12 + rnd() * 0.18) : FW * (0.88 - rnd() * 0.18);
     const d = hyp(tx - p.x, ty - p.y), vz = 11;
     launch(M, p, tx, ty, airLaunch(d, vz).h, vz, null, 0.08, true);
   }
   function gkDistribute(M, g, dvx, dvy) {
     const T = M.teams[g.team];
-    if (!(dvx || dvy) && nearestOppDist(M, g) < 4) { passTo(M, g, g.x + T.dir * (36 + g.kic * 0.15), GY + (rnd() - 0.5) * 30, null, true); M.ball.fresh = 0.35; return; }
+    if (!(dvx || dvy) && nearestOppDist(M, g) < 4) { passTo(M, g, g.x + T.dir * (36 + g.kic * 0.15) * K, GY + (rnd() - 0.5) * 30 * K, null, true); M.ball.fresh = 0.35; return; }
     const r = bestPassTarget(M, g, dvx, dvy, false);
     if (r && (dvx || dvy || r.s > -5)) {
       const m = r.m, d = hyp(m.x - g.x, m.y - g.y);
-      if (d > 26) { const sa = solveAir(g, m, dd => clamp(3.5 + dd * 0.16, 5, 12)); launch(M, g, sa.tx, sa.ty, sa.h, sa.vz, m, pErr(M, g, true)); }
+      if (d > 26 * Math.max(K, 0.6)) { const sa = solveAir(g, m, dd => clamp(3.5 + dd * 0.16, 5, 12)); launch(M, g, sa.tx, sa.ty, sa.h, sa.vz, m, pErr(M, g, true)); }
       else { const sg = solveGround(g, m, 7); launch(M, g, sg.tx, sg.ty, sg.v0, 0, m, pErr(M, g, false)); }
-    } else passTo(M, g, g.x + T.dir * (36 + g.kic * 0.15), GY + (rnd() - 0.5) * 30, null, true);
+    } else passTo(M, g, g.x + T.dir * (36 + g.kic * 0.15) * K, GY + (rnd() - 0.5) * 30 * K, null, true);
   }
   function takeBall(M, p) {
     const b = M.ball; M.dbg.take++; if (b.lastTeam !== p.team) M.dbg.intc++; if (b.pf != null) { if (b.pf === p.team) M.dbg.pok[p.team]++; b.pf = null; }
     b.owner = p; b.passTo = null; b.aim = null; b.shot = false; b.last = p; b.lastTeam = p.team; b.vz = 0; b.z = 0;
+    b.off = clamp((b.x - p.x) * p.fx + (b.y - p.y) * p.fy, 0.3, 1.2);
     p.protect = Math.max(p.protect, 0.3); p.holdT = 0; p.think = 0.15 + rnd() * 0.2; p.mustPass = false; p.recv = null;
     for (const q of M.P) { q.runTo = null; q.box = null; q.recv = null; }
     if (p.gk && inBox(p)) { p.hands = true; p.protect = 99; } else p.hands = false;
@@ -860,7 +880,7 @@ var RCL = (function () {
       if (inp.b1) { if (doPass(M, p, dx, dy, passKind(inp.g1), true)) h.recvLock = 0.45; }
       else if (inp.b3) {
         const own = T.dir > 0 ? 0 : FL;
-        if (Math.abs(p.x - own) < 30 && nearestOppDist(M, p) < 5 && inp.g3 !== 'up') clearance(M, p);
+        if (Math.abs(p.x - own) < 30 * K && nearestOppDist(M, p) < 5 && inp.g3 !== 'up') clearance(M, p);
         else if (doPass(M, p, dx, dy, inp.g3 === 'up' ? 'lobthru' : 'thru', true)) h.recvLock = 0.45;
       }
       else if (inp.b2u != null) { const k = shotKind(inp.g2); if (k === 'fake') fakeShot(M, p); else shoot(M, p, inp.b2u, aim, 1, k); }
@@ -916,7 +936,7 @@ var RCL = (function () {
       } else if (b.owner.team !== ti) {
         if (h) {
           if (h.pressing) { R.presser[ti] = c[0][1]; if (c[1] && c[1][0] < 28) R.cover[ti] = c[1][1]; }
-          else if (c[0][0] < 28) R.cover[ti] = c[0][1];
+          else if (c[0][0] < 28 * Math.max(K, 0.5)) R.cover[ti] = c[0][1];
         } else { R.presser[ti] = c[0][1]; if (c[1] && c[1][0] < 30) R.cover[ti] = c[1][1]; }
       }
     }
@@ -992,9 +1012,9 @@ var RCL = (function () {
     if (p.think <= 0) {
       p.think = 0.22 + rnd() * 0.25 * (1.2 - lv);
       const dG = hyp(gx - p.x, GY - p.y), ay = Math.abs(p.y - GY), pr = nearestOppDist(M, p);
-      const rangeK = 0.75 + p.sho * 0.0035;
+      const rangeK = (0.75 + p.sho * 0.0035) * Math.max(K, 0.42);
       if (dG < 28 * rangeK && ay < dG * 0.9) {
-        let c = dG < 11 ? 0.75 : dG < 17 * rangeK ? 0.45 : dG < 22 * rangeK ? 0.22 : 0.06;
+        let c = dG < 11 * Math.max(K, 0.45) ? 0.75 : dG < 17 * rangeK ? 0.45 : dG < 22 * rangeK ? 0.22 : 0.06;
         if (pr < 2.5) c += 0.15;
         c *= 0.6 + lv * 0.6;
         if (rnd() < c) {
@@ -1005,11 +1025,11 @@ var RCL = (function () {
         }
       }
       const toLine = Math.abs(gx - p.x);
-      if (toLine < 19 && Math.abs(p.y - GY) > 15 && rnd() < 0.3 + lv * 0.3) {
+      if (toLine < 19 * K && Math.abs(p.y - GY) > 15 * K && FL > 60 && rnd() < 0.3 + lv * 0.3) {
         let best = null, bs = -1e9;
         for (const m of T.players) {
           if (m === p || m.gk) continue;
-          if (Math.abs(gx - m.x) > 16 || Math.abs(m.y - GY) > 13) continue;
+          if (Math.abs(gx - m.x) > 16 * K || Math.abs(m.y - GY) > 13 * K) continue;
           let od = 99; for (const o of M.teams[1 - p.team].players) od = Math.min(od, hyp(o.x - m.x, o.y - m.y));
           const s = od - Math.abs(gx - m.x) * 0.2; if (s > bs) { bs = s; best = m; }
         }
@@ -1019,7 +1039,7 @@ var RCL = (function () {
       if (p.holdT > 2.2 + p.dri * 0.025 * rnd() && doPass(M, p, 0, 0, rnd() < 0.3 ? 'thru' : 'ground', false)) return;
       if (rnd() < 0.08 + lv * 0.08 + (p.pas - 75) * 0.004) { const r = bestPassTarget(M, p, dir, 0, true); if (r && r.s > 4) { doPass(M, p, dir, 0, 'thru', false); return; } }
       if (pr < 2.2 && p.skillCd <= 0 && rnd() < 0.08 + lv * 0.15 + (p.dri - 75) * 0.008) { skill(M, p, 0, 0); p.aiDir = [p.vx / (hyp(p.vx, p.vy) || 1), p.vy / (hyp(p.vx, p.vy) || 1)]; return; }
-      let dx = gx - p.x, dy = (GY - p.y) * (dG > 30 ? 0.35 : 1);
+      let dx = gx - p.x, dy = (GY - p.y) * (dG > 30 * K ? 0.35 : 1);
       let l = hyp(dx, dy) || 1; dx /= l; dy /= l;
       let rx = 0, ry = 0;
       for (const o of M.teams[1 - p.team].players) {
@@ -1065,13 +1085,13 @@ var RCL = (function () {
       if (closest || (hyp(b.vx, b.vy) < 6 && myD < 8)) { tx = b.x; ty = b.y; sp = g.spr; }
     }
     const o = b.owner;
-    if (tx === null && live && o && o.team !== g.team && Math.abs(o.x - gx) < BOXD && Math.abs(o.y - GY) < BOXW && hyp(o.x - g.x, o.y - g.y) < 9) {
+    if (tx === null && live && o && o.team !== g.team && Math.abs(o.x - gx) < BOXD && Math.abs(o.y - GY) < BOXW && hyp(o.x - g.x, o.y - g.y) < 9 * Math.max(K, 0.6)) {
       tx = o.x; ty = o.y; sp = g.spr * 0.9;
       if (g.tkCd <= 0 && hyp(o.x - g.x, o.y - g.y) < 1.5) { g.tkCd = 0.8; o.protect = 0; g.smother = true; resolveTackle(M, g, o, false); g.smother = false; }
     }
     if (tx === null) {
       const dB = hyp(b.x - gx, b.y - GY) || 1;
-      const off = clamp(dB * 0.12, 1, 4.5) * (0.75 + g.gpos * 0.003);
+      const off = clamp(dB * 0.12, 0.8, 4.5 * Math.max(K, 0.4)) * (0.75 + g.gpos * 0.003);
       tx = gx + (b.x - gx) / dB * off; ty = clamp(GY + (b.y - GY) / dB * off, GY - GHW - 1, GY + GHW + 1);
       if ((tx - gx) * inw < 0.5) tx = gx + inw * 0.5;
     }
@@ -1111,7 +1131,7 @@ var RCL = (function () {
       const d = hyp(p.x - b.x, p.y - b.y);
       let reach = b.passTo === p ? 1.3 : (b.pf != null && p.team !== b.lastTeam ? 0.58 + p.def * 0.004 : 0.8); if (p.gk) reach = Math.max(reach, 1);
       if (sp > 16 && b.passTo !== p) reach *= 0.64;
-      const zmax = p.gk && inBox(p) ? 2.6 : (b.z > 1.2 && (Math.abs(p.x - (p.team === 0 ? FL : 0)) < 18 || Math.abs(p.x - (p.team === 0 ? 0 : FL)) < 20)) ? 2.5 : 1.8;
+      const zmax = p.gk && inBox(p) ? 2.6 : (b.z > 1.2 && (Math.abs(p.x - (p.team === 0 ? FL : 0)) < 18 * K || Math.abs(p.x - (p.team === 0 ? 0 : FL)) < 20 * K)) ? 2.5 : 1.8;
       if (d < reach && b.z < zmax && d < bd) { bd = d; best = p; }
     }
     if (!best) return;
@@ -1133,7 +1153,7 @@ var RCL = (function () {
     const b = M.ball, T = M.teams[p.team], gx = T.dir > 0 ? FL : 0, og = T.dir > 0 ? 0 : FL;
     const dG = hyp(gx - p.x, GY - p.y), dO = hyp(og - p.x, GY - p.y);
     const human = M.humans.find(h => h.ctrl === p);
-    if (dG < 15 && Math.abs(p.y - GY) < 12 && (!human || (human.queued && human.queued.type === 'shot'))) {
+    if (dG < 15 * Math.max(K, 0.5) && Math.abs(p.y - GY) < 12 * Math.max(K, 0.5) && (!human || (human.queued && human.queued.type === 'shot'))) {
       const aim = human && human.queued.aim != null ? human.queued.aim : (rnd() - 0.5) * 1.8;
       if (human) human.queued = null;
       b.owner = null; act(p, 'head', 0.4);
@@ -1144,7 +1164,7 @@ var RCL = (function () {
       M.stats.shots[p.team]++; M.kc++;
       return true;
     }
-    if (dO < 20 && b.lastTeam !== p.team && !human) {
+    if (dO < 20 * K && b.lastTeam !== p.team && !human) {
       b.owner = null; act(p, 'head', 0.4);
       const dir = T.dir, ang = (rnd() - 0.5) * 1.2;
       b.vx = dir * 13 * Math.cos(ang); b.vy = 13 * Math.sin(ang); b.vz = 5 + rnd() * 3; b.spin = 0;
@@ -1164,7 +1184,7 @@ var RCL = (function () {
         setEv(M, b.z >= BARH ? 'Off the bar' : 'Off the post', 'post'); return;
       }
       if (b.lastTeam === end) restart(M, 'corner', 1 - end, end ? FL - 0.4 : 0.4, b.y < GY ? 0.4 : FW - 0.4);
-      else restart(M, 'gk', end, end ? FL - 5.5 : 5.5, GY);
+      else restart(M, 'gk', end, end ? FL - 5.5 * K : 5.5 * K, GY);
       return;
     }
     if (b.y < 0 || b.y > FW) restart(M, 'throw', 1 - b.lastTeam, clamp(b.x, 1, FL - 1), b.y < 0 ? 0.2 : FW - 0.2);
@@ -1178,10 +1198,10 @@ var RCL = (function () {
         const sp = hyp(o.vx, o.vy);
         const ctl = 1.2 - o.dri * 0.0045;
         o.dph = (o.dph || 0) + dt * (0.75 + sp * 0.18) * 0.5;
-        const frac = o.dph % 1, knock = sp > 1.5 ? (0.15 + sp * 0.05) * ctl : 0;
-        const reach = 0.46 + knock * (1 - frac);
-        const k = Math.min(1, dt * 20);
-        b.x += (o.x + o.fx * reach - b.x) * k; b.y += (o.y + o.fy * reach - b.y) * k; b.z = 0;
+        const frac = o.dph % 1, knock = sp > 1.5 ? (0.1 + sp * 0.035) * ctl : 0;
+        const want = 0.55 + clamp(sp * 0.075, 0, 0.6) * ctl + knock * (1 - frac);
+        b.off = b.off == null ? want : b.off + (want - b.off) * Math.min(1, dt * 14);
+        b.x = o.x + o.fx * b.off; b.y = o.y + o.fy * b.off; b.z = 0;
       }
       b.vx = o.vx; b.vy = o.vy; b.vz = 0; b.lastTeam = o.team;
     } else {
@@ -1233,6 +1253,7 @@ var RCL = (function () {
   }
 
   function step(M, dt) {
+    if (FL !== M.dims.FL) setDims(M.dims.n);
     M.t += dt;
     for (const p of M.P) {
       p.cd = Math.max(0, p.cd - dt); p.stun = Math.max(0, p.stun - dt); p.protect = Math.max(0, p.protect - dt); p.tkCd = Math.max(0, p.tkCd - dt);
@@ -1321,7 +1342,7 @@ var RCL = (function () {
     return {
       p, b: [Math.round(b.x * 10), Math.round(b.y * 10), Math.round(b.z * 10)],
       o: b.owner ? b.owner.id : -1, c: M.humans.map(h => h.ctrl ? h.ctrl.id : -1),
-      sc: [M.score[0], M.score[1]], tm: Math.round(M.clock * 10), ph: M.phase, h: M.half,
+      md: M.dims.n, sc: [M.score[0], M.score[1]], tm: Math.round(M.clock * 10), ph: M.phase, h: M.half,
       ev: M.ev, ek: M.evK, en: M.evN, kc: M.kc,
       st: [st.shots[0], st.shots[1], st.ot[0], st.ot[1], Math.round(st.poss[0]), Math.round(st.poss[1])],
       gl: M.goals.slice(-10).map(g => [g.t, g.n.slice(0, 24), g.m]),
@@ -1331,7 +1352,7 @@ var RCL = (function () {
     };
   }
 
-  return { STAT_KEYS, GK_KEYS, ACTS, FL, FW, GY, GHW, BOXD, BOXW, FORMS, SQUADS, SQ, teamOvr, resolveKits, newMatch, step, snap, bestPassTarget, emptyInput, clamp, passKind, shotKind };
+  return { DIMS, setDims, matchSquads, smallSquad, STAT_KEYS, GK_KEYS, ACTS, FL: 105, FW: 68, GY: 34, GHW: 3.66, BOXD: 16.5, BOXW: 20.16, FORMS, SQUADS, SQ, teamOvr, resolveKits, newMatch, step, snap, bestPassTarget, emptyInput, clamp, passKind, shotKind };
 })();
 if (typeof module !== 'undefined') module.exports = RCL;
 </script>
@@ -1340,8 +1361,8 @@ if (typeof module !== 'undefined') module.exports = RCL;
 // Three.js space: X = x - 52.5, Y = height, Z = y - 34. Camera sits on the near (y = 68) touchline.
 var RCL3D = (function () {
   'use strict';
-  const FL = 105, FW = 68, GY = 34, GHW = 3.66, BARH = 2.44;
-  const HX = FL / 2, HZ = FW / 2;
+  let FL = 105, FW = 68, GY = 34, GHW = 3.66, BARH = 2.44, BOXD = 16.5, BOXW = 20.16, HX = FL / 2, HZ = FW / 2, KS = 1;
+  function useDims(d) { if (!d) return; FL = d.FL; FW = d.FW; GY = d.GY; GHW = d.GHW; BARH = d.BARH; BOXD = d.BOXD; BOXW = d.BOXW; HX = FL / 2; HZ = FW / 2; KS = FL / 105; }
   const DUR = { kick: 0.32, slide: 0.95, dive: 0.9, head: 0.4, celebrate: 3, fall: 0.8, skill: 0.4, throw: 0.32, fake: 0.35, tackle: 0.3 };
   const SKIN = ['#F1C9A5', '#E0AC69', '#C68642', '#8D5524', '#5C3A21', '#F5D0B5', '#D9A066', '#A86B3C'];
   const HAIR = ['#2B1D14', '#3B2A1E', '#151110', '#5A3B22', '#1C1714', '#6B4A2B', '#0F0D0C', '#7A5A32', '#C9A15A'];
@@ -1395,6 +1416,11 @@ var RCL3D = (function () {
     scene.add(sun); scene.add(sun.target);
     const fill = new THREE.DirectionalLight('#C8DAFF', 0.25); fill.position.set(40, 50, -60); scene.add(fill);
 
+    // ---------- arena (pitch, boards, stands, lights, goals) - rebuilt when the pitch size changes ----------
+    let arena = null, arenaKey = '';
+    function buildArena() {
+      if (arena) { scene.remove(arena); arena.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { for (const m of [].concat(o.material)) { if (m.map) m.map.dispose(); m.dispose(); } } }); }
+      arena = new THREE.Group(); scene.add(arena);
     // ---------- pitch ----------
     const PW = FL + 16, PH = FW + 16, MARGIN = 8;
     const maxTex = renderer.capabilities.maxTextureSize;
@@ -1410,20 +1436,23 @@ var RCL3D = (function () {
       const C = (x, y, r, a0, a1, f) => { g.beginPath(); g.arc(m(x), m(y), r * PX, a0, a1); f ? g.fill() : g.stroke(); };
       R(0, 0, FL, FW);
       g.beginPath(); g.moveTo(m(HX), m(0)); g.lineTo(m(HX), m(FW)); g.stroke();
-      C(HX, GY, 9.15, 0, 7); C(HX, GY, 0.25, 0, 7, true);
+      C(HX, GY, 9.15 * Math.max(KS, 0.4), 0, 7); C(HX, GY, 0.25, 0, 7, true);
       for (const e of [0, 1]) {
         const x0 = e ? FL : 0, s = e ? -1 : 1;
-        R(e ? FL - 16.5 : 0, GY - 20.16, 16.5, 40.32); R(e ? FL - 5.5 : 0, GY - 9.16, 5.5, 18.32);
-        C(x0 + s * 11, GY, 0.22, 0, 7, true);
-        const a = Math.acos(5.5 / 9.15), base = e ? Math.PI : 0; C(x0 + s * 11, GY, 9.15, base - a, base + a);
+        R(e ? FL - BOXD : 0, GY - BOXW, BOXD, BOXW * 2);
+        if (FL > 60) {
+          R(e ? FL - 5.5 : 0, GY - 9.16, 5.5, 18.32);
+          C(x0 + s * 11, GY, 0.22, 0, 7, true);
+          const a = Math.acos(5.5 / 9.15), base = e ? Math.PI : 0; C(x0 + s * 11, GY, 9.15, base - a, base + a);
+        } else C(x0 + s * BOXD * 0.75, GY, 0.18, 0, 7, true);
       }
       C(0, 0, 1, 0, Math.PI / 2); C(FL, 0, 1, Math.PI / 2, Math.PI); C(FL, FW, 1, Math.PI, Math.PI * 1.5); C(0, FW, 1, Math.PI * 1.5, Math.PI * 2);
     });
     pitchTex.anisotropy = maxAniso;
     const pitch = new THREE.Mesh(new THREE.PlaneGeometry(PW, PH), new THREE.MeshLambertMaterial({ map: pitchTex }));
-    pitch.rotation.x = -Math.PI / 2; pitch.receiveShadow = true; scene.add(pitch);
+    pitch.rotation.x = -Math.PI / 2; pitch.receiveShadow = true; arena.add(pitch);
     const apron = new THREE.Mesh(new THREE.PlaneGeometry(260, 200), new THREE.MeshLambertMaterial({ color: '#173A22' }));
-    apron.rotation.x = -Math.PI / 2; apron.position.y = -0.02; apron.receiveShadow = true; scene.add(apron);
+    apron.rotation.x = -Math.PI / 2; apron.position.y = -0.02; apron.receiveShadow = true; arena.add(apron);
 
     // ---------- ad boards ----------
     const boardTex = canvasTex(1024, 64, (g, w, h) => {
@@ -1437,10 +1466,11 @@ var RCL3D = (function () {
     function board(len, x, z, rotY) {
       const t = boardTex.clone(); t.needsUpdate = true; t.repeat.set(len / 16, 1);
       const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.12), [boardMat, boardMat, boardMat, boardMat, new THREE.MeshBasicMaterial({ map: t }), new THREE.MeshBasicMaterial({ color: '#0D1B2E' })]);
-      m.position.set(x, 0.45, z); m.rotation.y = rotY; m.castShadow = true; scene.add(m);
+      m.position.set(x, 0.45, z); m.rotation.y = rotY; m.castShadow = true; arena.add(m);
     }
     board(FL + 10, 0, -HZ - 4, 0); board(FL + 10, 0, HZ + 4, Math.PI);
-    board(20, -HX - 5, -16, Math.PI / 2); board(20, -HX - 5, 16, Math.PI / 2); board(20, HX + 5, -16, -Math.PI / 2); board(20, HX + 5, 16, -Math.PI / 2);
+    const bl = Math.min(20, FW * 0.42), bz = Math.max(HZ * 0.47, bl / 2 + GHW + 1);
+    board(bl, -HX - 5, -bz, Math.PI / 2); board(bl, -HX - 5, bz, Math.PI / 2); board(bl, HX + 5, -bz, -Math.PI / 2); board(bl, HX + 5, bz, -Math.PI / 2);
 
     // ---------- stands with crowd ----------
     const crowdTex = canvasTex(1024, 512, (g, w, h) => {
@@ -1469,12 +1499,13 @@ var RCL3D = (function () {
       back.position.set(0, (rise + 8) / 2, -depth - 0.5); grp.add(back);
       const roof = new THREE.Mesh(new THREE.BoxGeometry(len, 0.6, depth * 0.75), new THREE.MeshLambertMaterial({ color: '#0E141B' }));
       roof.position.set(0, rise + 7.5, -depth * 0.62); grp.add(roof);
-      grp.position.set(cx, 0, cz); grp.rotation.y = rotY; scene.add(grp);
+      grp.position.set(cx, 0, cz); grp.rotation.y = rotY; arena.add(grp);
     }
-    stand(FL + 34, 30, 20, 0, -HZ - 9, 0);
-    stand(FL + 34, 30, 20, 0, HZ + 9, Math.PI);
-    stand(FW + 18, 26, 17, -HX - 11, 0, Math.PI / 2);
-    stand(FW + 18, 26, 17, HX + 11, 0, -Math.PI / 2);
+    const ss = Math.max(KS, 0.55);
+    stand(FL + 34, 30 * ss, 20 * ss, 0, -HZ - 9, 0);
+    stand(FL + 34, 30 * ss, 20 * ss, 0, HZ + 9, Math.PI);
+    stand(FW + 18, 26 * ss, 17 * ss, -HX - 11, 0, Math.PI / 2);
+    stand(FW + 18, 26 * ss, 17 * ss, HX + 11, 0, -Math.PI / 2);
 
     // ---------- floodlights ----------
     const glowTex = canvasTex(128, 128, (g, w) => {
@@ -1483,13 +1514,13 @@ var RCL3D = (function () {
       g.fillStyle = r; g.fillRect(0, 0, w, w);
     });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const x = sx * (HX + 20), z = sz * (HZ + 26), h = 42;
+      const x = sx * (HX + 20 * ss), z = sz * (HZ + 26 * ss), h = 42 * ss;
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, h, 8), new THREE.MeshLambertMaterial({ color: '#2A323C' }));
-      pole.position.set(x, h / 2, z); scene.add(pole);
+      pole.position.set(x, h / 2, z); arena.add(pole);
       const head = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 1), new THREE.MeshBasicMaterial({ color: '#FFFBEA' }));
-      head.position.set(x, h + 1, z); head.lookAt(0, 0, 0); scene.add(head);
+      head.position.set(x, h + 1, z); head.lookAt(0, 0, 0); arena.add(head);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-      glow.material.opacity = 0.2; glow.scale.set(18, 18, 1); glow.position.set(x, h + 1, z); scene.add(glow);
+      glow.material.opacity = 0.2; glow.scale.set(18, 18, 1); glow.position.set(x, h + 1, z); arena.add(glow);
     }
 
     // ---------- goals ----------
@@ -1517,15 +1548,16 @@ var RCL3D = (function () {
         for (let t = 0; t <= 1.001; t += 0.15) { const xx = x0 + s * 2 * t; L(V(xx, 0, zz), V(xx, BARH + (1.6 - BARH) * t, zz)); }
       }
       g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), netMat));
-      scene.add(g);
+      arena.add(g);
     }
     goalFrame(0); goalFrame(1);
     for (const fx of [-HX, HX]) for (const fz of [-HZ, HZ]) {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.5, 6), white); pole.position.set(fx, 0.75, fz); scene.add(pole);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.5, 6), white); pole.position.set(fx, 0.75, fz); arena.add(pole);
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.28), new THREE.MeshLambertMaterial({ color: '#E9B949', side: THREE.DoubleSide }));
-      flag.position.set(fx + 0.2, 1.36, fz); scene.add(flag);
+      flag.position.set(fx + 0.2, 1.36, fz); arena.add(flag);
     }
 
+    }
     // ---------- ball ----------
     const ballTex = canvasTex(256, 128, (g, w, h) => {
       g.fillStyle = '#F7F7F2'; g.fillRect(0, 0, w, h);
@@ -1704,10 +1736,10 @@ var RCL3D = (function () {
       const t = clamp((clock - rig.actStart) / (DUR[a] || 0.4), 0, 1);
       const side = rig.side || 1;
       if (a === 'kick') {
-        const sw = t < 0.35 ? -1.0 * (t / 0.35) : -1.0 + (t - 0.35) / 0.65 * 2.4;
-        rig.hipR.rotation.z = sw; rig.knR.rotation.z = t < 0.35 ? -1.4 * (t / 0.35) : -1.4 * (1 - (t - 0.35) / 0.65);
-        rig.hipL.rotation.z = -0.15; rig.knL.rotation.z = -0.25;
-        rig.shL.rotation.x = 0.9; rig.shR.rotation.x = -0.6; B.rotation.z = -0.1 + 0.15 * Math.sin(t * Math.PI);
+        const sw = t < 0.22 ? -0.35 + 1.75 * (t / 0.22) : 1.4 * (1 - (t - 0.22) / 0.78);
+        rig.hipR.rotation.z = sw; rig.knR.rotation.z = t < 0.22 ? -0.9 * (1 - t / 0.22) - 0.05 : -0.05 - 0.4 * ((t - 0.22) / 0.78);
+        rig.hipL.rotation.z = -0.2; rig.knL.rotation.z = -0.3;
+        rig.shL.rotation.x = 0.85; rig.shR.rotation.x = -0.55; B.rotation.z = 0.12 * Math.sin(Math.min(1, t * 2) * Math.PI) - 0.08;
       } else if (a === 'throw') {
         const k = Math.sin(t * Math.PI);
         rig.shL.rotation.z = 2.6 - k * 1.6; rig.shR.rotation.z = 2.6 - k * 1.6; rig.elL.rotation.z = 0.4; rig.elR.rotation.z = 0.4;
@@ -1767,6 +1799,8 @@ var RCL3D = (function () {
 
     function render(R, dt) {
       clock += dt;
+      const ak = R.dims ? R.dims.n : 11;
+      if (ak !== arenaKey) { useDims(R.dims || { FL: 105, FW: 68, GY: 34, GHW: 3.66, BARH: 2.44, BOXD: 16.5, BOXW: 20.16 }); buildArena(); arenaKey = ak; firstFrame = true; }
       if (!squads || squads.key !== R.key) { squads = { key: R.key }; buildTeams(R.teamInfo); firstFrame = true; }
       ballRef = R.ball;
       for (let i = 0; i < R.P.length && i < rigs.length; i++) animate(rigs[i], R.P[i], dt);
@@ -1792,11 +1826,11 @@ var RCL3D = (function () {
       const lead = R.ownerTeam === R.myTeam ? 5 * flip : 0;
       let fx = bx + lead, fz = clamp(bz * 0.75, -HZ + 6, HZ - 6);
       if (R.phase === 'goal' && R.scorerId >= 0) { const sp = R.P[R.scorerId]; fx = sp.x - HX; fz = clamp((sp.y - HZ) * 0.8, -HZ + 6, HZ - 6); }
-      fx = clamp(fx, -HX + (portrait ? 6 : 14), HX - (portrait ? 6 : 14));
+      const mx = Math.max(0, HX - (portrait ? 6 : 14) * (FL < 60 ? 0.6 : 1)); fx = clamp(fx, -mx, mx);
       const k = firstFrame ? 1 : Math.min(1, dt * 3.2);
       focus.x += (fx - focus.x) * k; focus.z += (fz - focus.z) * (firstFrame ? 1 : Math.min(1, dt * 2.2));
       firstFrame = false;
-      const zoom = R.phase === 'goal' ? 0.78 : 1, distBack = (portrait ? 44 : 28) * zoom, height = (portrait ? 30 : 20) * zoom;
+      const zoom = (R.phase === 'goal' ? 0.78 : 1) * (FL < 60 ? 0.8 : 1), distBack = (portrait ? 44 : 28) * zoom, height = (portrait ? 30 : 20) * zoom;
       camera.position.set(focus.x, height, focus.z + distBack * flip);
       camera.lookAt(focus.x, 0.6, focus.z - 1.5 * flip);
       sun.position.set(focus.x - 25, 55, focus.z + 30); sun.target.position.set(focus.x, 0, focus.z);
@@ -1810,7 +1844,9 @@ var RCL3D = (function () {
 <script>
 (function () {
   'use strict';
-  const E = RCL, FL = E.FL, FW = E.FW, GY = E.GY, GHW = E.GHW, SQUADS = E.SQUADS, SQ = E.SQ, clamp = E.clamp;
+  const E = RCL, SQUADS = E.SQUADS, SQ = E.SQ, clamp = E.clamp;
+  let FL = 105, FW = 68, GY = 34, GHW = 3.66, BOXD = 16.5, BOXW = 20.16;
+  function useDims(d) { FL = d.FL; FW = d.FW; GY = d.GY; GHW = d.GHW; BOXD = d.BOXD; BOXW = d.BOXW; }
   const hyp = Math.hypot;
   const $ = s => document.querySelector(s);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1826,8 +1862,9 @@ var RCL3D = (function () {
     mode: 'cpu', step: 1,
     my: SQ[store.get('my')] ? store.get('my') : 'bar09',
     opp: SQ[store.get('opp')] ? store.get('opp') : 'rma17',
-    diff: +(store.get('diff') || 1), halfMin: +(store.get('half') || 3)
+    diff: +(store.get('diff') || 1), halfMin: +(store.get('half') || 3), size: +(store.get('size') || 11)
   };
+  if (![3, 5, 11].includes(S.size)) S.size = 11;
   if (![0, 1, 2].includes(S.diff)) S.diff = 1;
   if (![2, 3, 5].includes(S.halfMin)) S.halfMin = 3;
 
@@ -1858,10 +1895,11 @@ var RCL3D = (function () {
 
   // ---------- picker ----------
   const DIFFS = ['Amateur', 'Pro', 'Legend'];
+  const sizeName = n => n === 11 ? '11 v 11' : n + ' v ' + n;
   function renderPick() {
     const step2 = S.mode === 'cpu' && S.step === 2;
     $('#pickStep').textContent = S.mode === 'cpu' ? `Step ${S.step} of 2` : 'Online 1v1';
-    $('#pickTitle').textContent = step2 ? 'Choose the opponent' : 'Choose your club';
+    $('#pickTitle').textContent = step2 ? 'Choose Senpai\'s club' : 'Choose your club';
     $('#cpuOpts').hidden = !step2;
     const sel = step2 ? S.opp : S.my;
     const grid = $('#squadGrid');
@@ -1872,12 +1910,14 @@ var RCL3D = (function () {
     };
     $('#diffSeg').innerHTML = DIFFS.map((d, i) => `<button type="button" data-v="${i}" aria-pressed="${S.diff === i}">${d}</button>`).join('');
     for (const b of $('#diffSeg').children) b.onclick = () => { S.diff = +b.dataset.v; store.set('diff', S.diff); renderPick(); };
+    $('#sizeSeg').innerHTML = [[11, '11 v 11'], [5, '5 v 5'], [3, '3 v 3']].map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="${S.size === v}">${t}</button>`).join('');
+    for (const b of $('#sizeSeg').children) b.onclick = () => { S.size = +b.dataset.v; store.set('size', S.size); renderPick(); };
     $('#lenSeg').innerHTML = [2, 3, 5].map(m => `<button type="button" data-v="${m}" aria-pressed="${S.halfMin === m}">${m} min</button>`).join('');
     for (const b of $('#lenSeg').children) b.onclick = () => { S.halfMin = +b.dataset.v; store.set('half', S.halfMin); renderPick(); };
     renderLineup(SQ[sel]);
     const me = SQ[S.my], op = SQ[S.opp];
     $('#matchup').innerHTML = S.mode === 'cpu' && S.step === 2
-      ? `${esc(me.code)} <span>${me.season}</span> vs ${esc(op.code)} <span>${op.season}</span>`
+      ? `${esc(me.code)} <span>${me.season}</span> vs ${esc(op.code)} <span>${op.season} · ${sizeName(S.size)}</span>`
       : `${esc(me.club)} <span>${me.season}</span>`;
     $('#pickNext').textContent = S.mode === 'online' ? 'Find your friend' : S.step === 1 ? 'Pick opponent' : 'Kick off';
   }
@@ -2203,15 +2243,16 @@ var RCL3D = (function () {
     ctx.strokeStyle = 'rgba(255,255,255,.86)'; ctx.lineWidth = Math.max(1.4, 0.12 * SC);
     strokeW(0, 0, FL, FW);
     lineW(FL / 2, 0, FL / 2, FW);
-    arcW(FL / 2, GY, 9.15, 0, Math.PI * 2);
+    arcW(FL / 2, GY, 9.15 * Math.max(FL / 105, 0.4), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,.86)'; arcW(FL / 2, GY, 0.25, 0, Math.PI * 2, true);
     for (const e of [0, 1]) {
       const x0 = e ? FL : 0, s = e ? -1 : 1;
-      strokeW(e ? FL - 16.5 : 0, GY - 20.16, 16.5, 40.32);
-      strokeW(e ? FL - 5.5 : 0, GY - 9.16, 5.5, 18.32);
-      arcW(x0 + s * 11, GY, 0.22, 0, Math.PI * 2, true);
-      const a = Math.acos(5.5 / 9.15), base = e ? Math.PI : 0;
-      arcW(x0 + s * 11, GY, 9.15, base - a, base + a);
+      strokeW(e ? FL - BOXD : 0, GY - BOXW, BOXD, BOXW * 2);
+      if (FL > 60) {
+        arcW(x0 + s * 11, GY, 0.22, 0, Math.PI * 2, true);
+        const a = Math.acos(5.5 / 9.15), base = e ? Math.PI : 0;
+        arcW(x0 + s * 11, GY, 9.15, base - a, base + a);
+      }
     }
     arcW(0, 0, 1, 0, Math.PI / 2); arcW(FL, 0, 1, Math.PI / 2, Math.PI); arcW(FL, FW, 1, Math.PI, Math.PI * 1.5); arcW(0, FW, 1, Math.PI * 1.5, Math.PI * 2);
   }
@@ -2321,7 +2362,7 @@ var RCL3D = (function () {
     rctx.strokeStyle = 'rgba(255,255,255,.35)'; rctx.lineWidth = 1;
     rctx.strokeRect(0.5, 0.5, w - 1, h - 1);
     rctx.beginPath(); rctx.moveTo(w / 2, 0); rctx.lineTo(w / 2, h);
-    rctx.rect(0.5, h * (GY - 20.16) / FW, w * 16.5 / FL, h * 40.32 / FW); rctx.rect(w - w * 16.5 / FL - 0.5, h * (GY - 20.16) / FW, w * 16.5 / FL, h * 40.32 / FW);
+    rctx.rect(0.5, h * (GY - BOXW) / FW, w * BOXD / FL, h * BOXW * 2 / FW); rctx.rect(w - w * BOXD / FL - 0.5, h * (GY - BOXW) / FW, w * BOXD / FL, h * BOXW * 2 / FW);
     rctx.stroke();
     const map = (x, y) => { const v = V(x, y); return [v[0] / FL * w, v[1] / FW * h]; };
     for (const p of R.P) {
@@ -2466,8 +2507,9 @@ var RCL3D = (function () {
   }
   function startCpu() {
     SFX.init();
-    M = E.newMatch({ sqA: SQ[S.my], sqB: SQ[S.opp], humans: [{ team: 0 }], diff: S.diff, halfSecs: S.halfMin * 60 });
-    M.id = ++matchSeq; M.info = teamInfo(SQ[S.my], SQ[S.opp], [M.teams[0].kit, M.teams[1].kit]); mode = 'cpu'; enterGame();
+    const [qa, qb] = E.matchSquads(SQ[S.my], SQ[S.opp], S.size);
+    M = E.newMatch({ sqA: qa, sqB: qb, humans: [{ team: 0 }], diff: S.diff, halfSecs: S.halfMin * 60, size: S.size });
+    M.id = ++matchSeq; M.info = teamInfo(qa, qb, [M.teams[0].kit, M.teams[1].kit]); mode = 'cpu'; useDims(M.dims); enterGame();
   }
   function viewFromMatch() {
     const h0 = M.humans[0], h1 = M.humans[1];
@@ -2478,7 +2520,7 @@ var RCL3D = (function () {
       codes: [M.teams[0].sq.code, M.teams[1].sq.code], score: M.score, clock: M.clock, phase: M.phase,
       ev: M.ev, evK: M.evK, evN: M.evN, kc: M.kc, goals: M.goals, stats: M.stats, matchId: M.id,
       charge: IN.b2h && o && h0 && o === h0.ctrl ? charge() : null, hint: -1,
-      key: 'm' + M.id, teamInfo: M.info, scorerId: M.scorer ? M.scorer.id : -1, sta: h0 && h0.ctrl ? h0.ctrl.sta : 100
+      dims: M.dims, key: 'm' + M.id, teamInfo: M.info, scorerId: M.scorer ? M.scorer.id : -1, sta: h0 && h0.ctrl ? h0.ctrl.sta : 100
     };
   }
   function frame(ts) {
@@ -2599,7 +2641,7 @@ var RCL3D = (function () {
     try {
       const nr = await NET.room.join('rcl-' + code, { role, onFail: m => { NET.err = m; if (!running) renderOnline(); } });
       NET.named = nr; NET.role = role; NET.code = code;
-      await nr.presence(role === 'host' ? { r: 'h', t: S.my, ph: 'lobby', hs: S.halfMin * 60 } : { r: 'g', t: S.my }).catch(() => {});
+      await nr.presence(role === 'host' ? { r: 'h', t: S.my, ph: 'lobby', hs: S.halfMin * 60, md: S.size } : { r: 'g', t: S.my }).catch(() => {});
       NET.unsub = nr.onPeers(onRoomChange, e => { NET.err = 'The connection to the room dropped (' + (e && e.code || 'error') + '). Leave and create a new room.'; if (!running) renderOnline(); });
     } catch (e) {
       NET.named = null; NET.role = null;
@@ -2638,8 +2680,8 @@ var RCL3D = (function () {
     let html = myClub;
     if (NET.state === 'checking') html += `<p class="notice">Checking whether online play is available here…</p>`;
     else if (NET.state === 'off') html += NET.kind === 'claude'
-      ? `<div class="notice"><b>Online play needs this page open on claude.ai.</b><br>Both players must be signed in and have access to this page. The owner can invite a friend by email from the Share menu. Public links can't join rooms. Solo matches against the CPU work everywhere.</div>`
-      : `<div class="notice"><b>Online play couldn't load.</b><br>Check your internet connection and reload the page. Solo matches against the CPU still work.</div>`;
+      ? `<div class="notice"><b>Online play needs this page open on claude.ai.</b><br>Both players must be signed in and have access to this page. The owner can invite a friend by email from the Share menu. Public links can't join rooms. Matches against Senpai work everywhere.</div>`
+      : `<div class="notice"><b>Online play couldn't load.</b><br>Check your internet connection and reload the page. Matches against Senpai still work.</div>`;
     else if (!NET.named) {
       html += `<div class="online-grid">
         <div class="card"><h3>Create a room</h3><p>You'll get a 5-character code. Send it to your friend. You play as the home side.</p><div class="field"><button class="btn" type="button" id="mkRoom">Create room</button></div></div>
@@ -2651,7 +2693,7 @@ var RCL3D = (function () {
       const oSq = o && SQ[o.presence.t] ? o.presence.t : null;
       html += `<div class="card lobby"><div class="lobby-top"><div><p class="eyebrow">Room code${isHost ? ' · send this to your friend' : ''}</p><div class="roomcode" id="roomCode">${esc(NET.code.toUpperCase())}</div></div>${isHost ? '<button class="btn ghost" type="button" id="copyCode">Copy code</button>' : ''}</div>
         <div class="vs">${sideCard('You' + (isHost ? ' · home' : ' · away'), 'me', S.my)}<span class="vs-x">vs</span>${sideCard('Friend' + (isHost ? ' · away' : ' · home'), 'fr', oSq)}</div>
-        ${isHost ? `<div style="margin-top:16px"><span class="opt-label" id="olenL">Half length</span><div class="seg" role="group" aria-labelledby="olenL" id="olenSeg">${[2, 3, 5].map(m => `<button type="button" data-v="${m}" aria-pressed="${S.halfMin === m}">${m} min</button>`).join('')}</div></div>` : ''}
+        ${isHost ? `<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:16px 26px"><div><span class="opt-label" id="osizeL">Match type</span><div class="seg" role="group" aria-labelledby="osizeL" id="osizeSeg">${[11, 5, 3].map(v => `<button type="button" data-v="${v}" aria-pressed="${S.size === v}">${sizeName(v)}</button>`).join('')}</div></div><div><span class="opt-label" id="olenL">Half length</span><div class="seg" role="group" aria-labelledby="olenL" id="olenSeg">${[2, 3, 5].map(m => `<button type="button" data-v="${m}" aria-pressed="${S.halfMin === m}">${m} min</button>`).join('')}</div></div></div>` : `<p class="status" style="margin-top:14px">${o && [3, 5, 11].includes(o.presence.md) ? 'Match type: ' + sizeName(o.presence.md) : ''}</p>`}
         <div class="lobby-actions">${isHost ? `<button class="cta" type="button" id="kickBtn" ${oSq ? '' : 'disabled'}>Kick off</button><span class="status">${oSq ? 'Your friend is here. Kick off when you are both ready.' : 'Waiting for your friend to join with the code.'}</span>` : `<span class="status">${o ? 'Connected. The host starts the match.' : 'Looking for the host… check the code is right.'}</span>`}<button class="btn ghost" type="button" id="leaveBtn">Leave room</button></div></div>`;
     }
     if (NET.err) html += `<p class="err" role="alert">${esc(NET.err)}</p>`;
@@ -2670,6 +2712,7 @@ var RCL3D = (function () {
       try { navigator.clipboard.writeText(t).then(done, () => selectCode()); } catch (e) { selectCode(); }
     };
     const os = $('#olenSeg'); if (os) for (const b of os.children) b.onclick = () => { S.halfMin = +b.dataset.v; store.set('half', S.halfMin); if (NET.named) NET.named.presence({ hs: S.halfMin * 60 }).catch(() => {}); renderOnline(); };
+    const zs = $('#osizeSeg'); if (zs) for (const b of zs.children) b.onclick = () => { S.size = +b.dataset.v; store.set('size', S.size); if (NET.named) NET.named.presence({ md: S.size }).catch(() => {}); renderOnline(); };
     const kb = $('#kickBtn'); if (kb) kb.onclick = () => startHost();
     const lb = $('#leaveBtn'); if (lb) lb.onclick = () => { leaveRoom(); renderOnline(); };
   }
@@ -2682,10 +2725,11 @@ var RCL3D = (function () {
     if (!o || !SQ[o.presence.t]) { NET.err = 'Your friend left the room before kick-off.'; renderOnline(); return; }
     SFX.init();
     const gid = o.presence.t;
-    M = E.newMatch({ sqA: SQ[S.my], sqB: SQ[gid], humans: [{ team: 0 }, { team: 1, remote: true }], diff: 1, halfSecs: S.halfMin * 60 });
-    M.id = ++matchSeq; M.info = teamInfo(SQ[S.my], SQ[gid], [M.teams[0].kit, M.teams[1].kit]); mode = 'host';
+    const [qa, qb] = E.matchSquads(SQ[S.my], SQ[gid], S.size);
+    M = E.newMatch({ sqA: qa, sqB: qb, humans: [{ team: 0 }, { team: 1, remote: true }], diff: 1, halfSecs: S.halfMin * 60, size: S.size });
+    M.id = ++matchSeq; M.info = teamInfo(qa, qb, [M.teams[0].kit, M.teams[1].kit]); mode = 'host'; useDims(M.dims);
     NET.lastOther = performance.now() / 1000; NET.lastSnap = 0;
-    NET.named.presence({ ph: 'match', g: gid, t: S.my, s: E.snap(M) }).catch(() => {});
+    NET.named.presence({ ph: 'match', g: gid, t: S.my, md: S.size, s: E.snap(M) }).catch(() => {});
     enterGame();
   }
   // guest input: [mx, my, spr, s1, g1, s2d, s2u, pw, g2, s3, g3, b3h, s4, g4x, g4y]; the guest's view is rotated 180°
@@ -2727,22 +2771,25 @@ var RCL3D = (function () {
   const PHASES = ['kickoff', 'play', 'out', 'goal', 'half', 'end'];
   const EVK = ['goal', 'half', 'end', 'ko', 'go', 'out', 'save', 'post', 'block'];
   function startGuest(pr) {
-    const sqA = SQ[pr.t], sqB = SQ[pr.g];
-    if (!sqA || !sqB) return;
+    if (!SQ[pr.t] || !SQ[pr.g]) return;
+    const md = [3, 5, 11].includes(pr.md) ? pr.md : 11;
+    const [sqA, sqB] = E.matchSquads(SQ[pr.t], SQ[pr.g], md);
+    const dims = E.setDims(md); useDims(dims);
     SFX.init();
     const kits = E.resolveKits(sqA, sqB);
     const P = [];
-    [sqA, sqB].forEach((sq, ti) => sq.xi.forEach((d, i) => P.push({ id: ti * 11 + i, team: ti, i, gk: i === 0, name: d[0], x: FL / 2, y: GY, tx: FL / 2, ty: GY, fx: ti ? -1 : 1, fy: 0, act: '', side: 0 })));
-    G = { sqA, sqB, kits, P, info: teamInfo(sqA, sqB, kits), scorer: -1, ball: { x: FL / 2, y: GY, z: 0, tx: FL / 2, ty: GY, tz: 0 }, owner: -1, c: [-1, -1], score: [0, 0], clock: 0, phase: 'kickoff',
+    [sqA, sqB].forEach((sq, ti) => sq.xi.forEach((d, i) => P.push({ id: ti * sq.xi.length + i, team: ti, i, gk: i === 0, name: d[0], x: FL / 2, y: GY, tx: FL / 2, ty: GY, fx: ti ? -1 : 1, fy: 0, act: '', side: 0 })));
+    G = { sqA, sqB, kits, P, dims, N: P.length, info: teamInfo(sqA, sqB, kits), scorer: -1, ball: { x: FL / 2, y: GY, z: 0, tx: FL / 2, ty: GY, tz: 0 }, owner: -1, c: [-1, -1], score: [0, 0], clock: 0, phase: 'kickoff',
       ev: '', evK: '', evN: 0, kc: 0, goals: [], stats: { shots: [0, 0], ot: [0, 0], poss: [0, 0] }, lastS: null, init: false, id: ++matchSeq };
     mode = 'guest'; NET.lastOther = performance.now() / 1000;
     enterGame();
     applySnap(pr.s);
   }
   function applySnap(s) {
-    if (!s || !Array.isArray(s.p) || s.p.length !== 44 || !Array.isArray(s.b)) return;
+    const N = G.N;
+    if (!s || !Array.isArray(s.p) || s.p.length !== N * 2 || !Array.isArray(s.b)) return;
     const num = v => { v = +v; return Number.isFinite(v) ? v : 0; };
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < N; i++) {
       const p = G.P[i], nx = clamp(num(s.p[2 * i]) / 10, -5, FL + 5), ny = clamp(num(s.p[2 * i + 1]) / 10, -5, FW + 5);
       const dx = nx - p.tx, dy = ny - p.ty, d = hyp(dx, dy);
       if (d > 0.04) { p.fx = dx / d; p.fy = dy / d; }
@@ -2752,7 +2799,7 @@ var RCL3D = (function () {
     const b = G.ball;
     b.tx = clamp(num(s.b[0]) / 10, -5, FL + 5); b.ty = clamp(num(s.b[1]) / 10, -5, FW + 5); b.tz = clamp(num(s.b[2]) / 10, 0, 20);
     if (!G.init || hyp(b.tx - b.x, b.ty - b.y) > 10) { b.x = b.tx; b.y = b.ty; b.z = b.tz; }
-    G.owner = Number.isInteger(s.o) && s.o >= 0 && s.o < 22 ? s.o : -1;
+    G.owner = Number.isInteger(s.o) && s.o >= 0 && s.o < N ? s.o : -1;
     if (G.owner >= 0) { const o = G.P[G.owner], dx = b.tx - o.tx, dy = b.ty - o.ty, d = hyp(dx, dy); if (d > 0.1) { o.fx = dx / d; o.fy = dy / d; } }
     G.c = Array.isArray(s.c) ? [Number.isInteger(s.c[0]) ? s.c[0] : -1, Number.isInteger(s.c[1]) ? s.c[1] : -1] : [-1, -1];
     G.score = Array.isArray(s.sc) ? [num(s.sc[0]), num(s.sc[1])] : G.score;
@@ -2761,14 +2808,14 @@ var RCL3D = (function () {
     G.ev = typeof s.ev === 'string' ? s.ev.slice(0, 32) : ''; G.evK = EVK.includes(s.ek) ? s.ek : ''; G.evN = num(s.en); G.kc = num(s.kc);
     if (Array.isArray(s.st)) G.stats = { shots: [num(s.st[0]), num(s.st[1])], ot: [num(s.st[2]), num(s.st[3])], poss: [num(s.st[4]), num(s.st[5])] };
     G.goals = Array.isArray(s.gl) ? s.gl.slice(0, 12).filter(Array.isArray).map(g => ({ t: g[0] ? 1 : 0, n: String(g[1] == null ? '' : g[1]).slice(0, 24), m: num(g[2]) })) : [];
-    if (Array.isArray(s.a) && s.a.length === 22) {
-      for (let i = 0; i < 22; i++) {
+    if (Array.isArray(s.a) && s.a.length === N) {
+      for (let i = 0; i < N; i++) {
         const v = num(s.a[i]), code = Math.floor(v / 1000), deg = v % 1000, p = G.P[i];
         p.act = E.ACTS[Math.floor(code / 10)] || ''; p.side = code % 10 === 2 ? 1 : code % 10 === 1 ? -1 : 0;
         p.fx = Math.cos(deg * Math.PI / 180); p.fy = Math.sin(deg * Math.PI / 180);
       }
     }
-    G.scorer = Number.isInteger(s.sr) && s.sr >= 0 && s.sr < 22 ? s.sr : -1;
+    G.scorer = Number.isInteger(s.sr) && s.sr >= 0 && s.sr < N ? s.sr : -1;
     G.sta = Array.isArray(s.stc) ? clamp(num(s.stc[1]), 0, 100) : 100;
     G.init = true;
   }
@@ -2788,6 +2835,7 @@ var RCL3D = (function () {
     const k = Math.min(1, dt * 14), kb = Math.min(1, dt * 18);
     for (const p of G.P) { p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k; }
     const b = G.ball; b.x += (b.tx - b.x) * kb; b.y += (b.ty - b.y) * kb; b.z += (b.tz - b.z) * kb;
+    if (G.owner >= 0) { const o = G.P[G.owner]; b.x = o.x + (b.tx - o.tx); b.y = o.y + (b.ty - o.ty); }
     const v = moveVec();
     const arr = [Math.round(v[0] * 100), Math.round(v[1] * 100), IN.spr || IN.kspr ? 1 : 0, IN.seq[0], GCODE[IN.gs[0]] || 0, IN.seq[1], IN.seq[2], Math.round(IN.pw * 100), GCODE[IN.gs[1]] || 0,
       IN.seq[3], GCODE[IN.gs[2]] || 0, IN.b3h ? 1 : 0, IN.seq[4], Math.round(IN.gs[3] * 100), Math.round(IN.gs[4] * 100)];
@@ -2797,7 +2845,7 @@ var RCL3D = (function () {
   }
   function viewFromGuest() {
     return {
-      P: G.P, ball: G.ball, ownerTeam: G.owner >= 0 ? (G.owner < 11 ? 0 : 1) : -1, ctrl: G.c[1], ctrl2: G.c[0],
+      P: G.P, ball: G.ball, dims: G.dims, ownerTeam: G.owner >= 0 ? (G.owner < G.N / 2 ? 0 : 1) : -1, ctrl: G.c[1], ctrl2: G.c[0],
       myTeam: 1, flip: true, kits: G.kits, gks: [G.sqA.gk, G.sqB.gk], codes: [G.sqA.code, G.sqB.code],
       score: G.score, clock: G.clock, phase: G.phase, ev: G.ev, evK: G.evK, evN: G.evN, kc: G.kc, goals: G.goals, stats: G.stats, matchId: G.id,
       charge: IN.b2h && G.owner >= 0 && G.owner === G.c[1] ? charge() : null, hint: -1,

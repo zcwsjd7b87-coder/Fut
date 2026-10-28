@@ -1,6 +1,6 @@
 # Fut · RCL Football
 
-Pick a legendary club squad and play the match yourself: real-time 3D 11v11 football with an FC Mobile–style broadcast camera and touch controls, against the CPU or a friend online.
+Pick a legendary club squad and play the match yourself: real-time 3D football with an FC Mobile–style broadcast camera and touch controls, against Senpai (the computer) or a friend online. Play 11 v 11, 5 v 5 or 3 v 3; small-sided games use a smaller pitch and goals and pick the best players from each squad.
 
 ## Play
 
