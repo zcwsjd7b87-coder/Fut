@@ -1,4 +1,4 @@
-# Fut · RCL Football
+# Fut · Senpai Football
 
 Pick a legendary club squad and play the match yourself: real-time 3D football with an FC Mobile–style broadcast camera and touch controls, against Senpai (the computer) or a friend online. Play 11 v 11, 5 v 5 or 3 v 3; small-sided games use a smaller pitch and goals and pick the best players from each squad.
 
@@ -30,9 +30,15 @@ Receivers hold their spot and come short to meet the ball instead of drifting aw
 
 The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right corner, Pass (blue) to its left, Through (yellow) above Pass and Shoot (red) above Sprint & Skill, with the joystick on the left. Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
 
-### Intro, replays and Skip
+### Tackling, skills and movement
 
-Matches open with a stadium fly-in and line-up banner. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips the intro, celebrations, replays and half-time; online, the host can skip celebrations and half-time.
+- **Tackling is about angle and timing.** Step into the ball in front of or beside the carrier and you can nick it; your controlled player wins it most reliably. Tackles from behind rarely work and are often fouls (free kick, or a penalty in the box). Slide tackles through the back of a player are fouls.
+- **Skill moves follow a set path:** the ball stays at the player's feet through step overs, roulettes and drag backs, and rainbow flicks and heel-to-heels knock it past the defender for you to run onto. Point the stick sideways to choose which way you go. Defenders close by can be wrong-footed; low-DRI players can take a heavy touch.
+- **Players carry momentum.** They lean and bank into turns, plant before changing direction, side-step and backpedal while watching the ball, walk when the shape is set, and sprint only when it matters. Attackers make their own runs (in behind, coming short, full-backs overlapping), and through balls lead them.
+
+### Match presentation and Skip
+
+Matches open with the teams lined up side by side and the line-ups on screen, then a fly-in to kick-off. At half-time the players walk off with the score and stats on screen, then the second half opens with its own fly-in. Full-time shows the winners celebrating around the man of the match (losers with hands on heads, a draw applauded) before the result screen. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips each of these; online, each player can skip their own sequences.
 
 ### Player ratings
 
