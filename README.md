@@ -1,6 +1,6 @@
 # Fut · RCL Football
 
-Pick a legendary club squad and play the match yourself: real-time 11v11 football with FC Mobile–style controls, against the CPU or a friend online.
+Pick a legendary club squad and play the match yourself: real-time 3D 11v11 football with an FC Mobile–style broadcast camera and touch controls, against the CPU or a friend online.
 
 ## Play
 
@@ -15,8 +15,13 @@ Open `index.html` in a browser, or deploy the repo to Vercel (no build step, it 
 | Shoot / Tackle | Shoot (hold longer for more power) | K or Space |
 | Through ball / Teammate press | Through | L |
 | Sprint | Sprint (hold) | Shift |
+| Skill move / Slide tackle | Skill | I |
 
-The buttons change with possession: with the ball they pass, shoot and play through balls; without it they switch player, tackle and send a teammate to press.
+The buttons change with possession: with the ball they pass, shoot, play through balls and do skill moves; without it they switch player, tackle, send a teammate to press and slide tackle.
+
+- Shots without sprint curl in as finesse shots; hold the stick toward a post to aim.
+- Press pass or shoot while a pass is coming to you to play it first time.
+- Cross from near the byline to set up headers.
 
 ### Online 1v1
 
@@ -34,4 +39,5 @@ Online play connects the two devices directly through [PeerJS](https://peerjs.co
 
 ## Files
 
-- `index.html` – the whole game: menus, match engine, renderer, controls and online rooms.
+- `index.html` – the whole game: menus, match engine, 3D renderer, controls and online rooms.
+- `vendor/three.min.js` – three.js r149 (MIT license) for the 3D graphics.
