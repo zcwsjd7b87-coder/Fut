@@ -21,7 +21,7 @@ Open `index.html` in a browser, or deploy the repo to Vercel (no build step, it 
 
 Keyboard: WASD/arrows move · J pass, U lob, Y pass and go · L through, O lofted through · K shoot, F finesse, C chip, G fake · Shift sprint, E skill / tackle · R keeper rush · P pause.
 
-Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
+The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right corner, Pass (blue) to its left, Through (yellow) above Pass and Shoot (red) above Sprint & Skill, with the joystick on the left. Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
 
 ### Player ratings
 
