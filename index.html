@@ -566,7 +566,7 @@ var RCL = (function () {
   const emptyInput = () => ({ mx: 0, my: 0, spr: false, b1: false, g1: '', b2d: false, b2u: null, g2: '', b3: false, g3: '', b3h: false, b4: false, g4: '' });
   function setEv(M, text, kind) { M.ev = text; M.evK = kind; M.evN++; }
   function act(p, type, t, side) { p.act = type; p.actT = t; p.side = side || 0; }
-  const ACTS = ['', 'kick', 'slide', 'dive', 'head', 'celebrate', 'fall', 'skill', 'throw', 'fake', 'tackle', 'trap', 'throwin', 'jockey', 'shield', 'stepover', 'roulette', 'rainbow', 'dragback', 'burst', 'catch', 'chest', 'thigh', 'getup', 'punt'];
+  const ACTS = ['', 'kick', 'slide', 'dive', 'head', 'celebrate', 'fall', 'skill', 'throw', 'fake', 'tackle', 'trap', 'throwin', 'jockey', 'shield', 'stepover', 'roulette', 'rainbow', 'dragback', 'burst', 'catch', 'chest', 'thigh', 'getup', 'punt', 'joy', 'signal', 'wall', 'knees'];
 
   function newMatch(cfg) {
     const dims = setDims(cfg.size || 11);
@@ -673,6 +673,22 @@ var RCL = (function () {
       const dx = p.x - x, dy = p.y - y, d = hyp(dx, dy);
       if (d < minD) { const k = minD / (d || 1); p.x = clamp(x + dx * k, -1, FL + 1); p.y = clamp(y + dy * k, -1, FW + 1); }
     }
+    if (type === 'corner') act(tk, 'signal', 1.2);
+    for (const p of M.P) p.wall = false;
+    if (type === 'free') {
+      const gx = T.dir > 0 ? FL : 0, dG = hyp(gx - x, GY - y);
+      if (dG < 32 * Math.max(K, 0.55) && Math.abs(gx - x) > BOXD * 0.6) {
+        // a wall of defenders 9.15 m away, between the ball and the goal
+        const D = M.teams[1 - team].players.filter(p => !p.gk), n = Math.min(dG < 22 * Math.max(K, 0.55) ? 4 : 3, Math.max(1, D.length - 1));
+        const ux = (gx - x) / dG, uy = (GY - y) / dG, wd = Math.min(9.15 * Math.max(K, 0.5), dG - 2);
+        D.sort((a, c) => hyp(a.x - x, a.y - y) - hyp(c.x - x, c.y - y));
+        for (let i = 0; i < n; i++) {
+          const q = D[i], off = (i - (n - 1) / 2) * 0.62 + uy * 0.4 * Math.sign(GY - y);
+          q.x = x + ux * wd - uy * off; q.y = y + uy * wd + ux * off; q.vx = q.vy = 0; q.fx = -ux; q.fy = -uy;
+          q.wall = true; q.box = { x: q.x, y: q.y, t: 6 };
+        }
+      }
+    }
     if (type === 'corner') {
       const gx = T.dir > 0 ? FL : 0;
       for (const p of T.players) if (!p.gk && p !== tk && p.slot[0] > 0.35) p.box = { x: gx - T.dir * (5 + rnd() * 9) * K, y: GY + (rnd() - 0.5) * 18 * K, t: 4 };
@@ -693,7 +709,8 @@ var RCL = (function () {
     b.owner = null; b.shot = false; b.passTo = null;
     M.phase = 'goal'; M.phaseT = 3.4; M.nextKick = 1 - st;
     M.scorer = sc && sc.team === st && !sc.gk ? sc : null;
-    if (M.scorer) M.scorer.celeb = 1 + Math.floor(rnd() * 4);
+    if (M.scorer) M.scorer.celeb = (rnd() < 0.5 ? 1 : -1) * (1 + Math.floor(rnd() * 4));
+    for (const q of M.teams[1 - st].players) if (rnd() < (q.gk ? 1 : 0.7)) act(q, 'dejected', 1.8 + rnd() * 1.2);
     setEv(M, 'GOAL', 'goal');
   }
 
@@ -784,6 +801,7 @@ var RCL = (function () {
     b.owner = null; b.vx = vx; b.vy = vy; b.vz = vz;
     b.last = p; b.lastTeam = p.team; b.passTo = null; b.aim = null; b.shot = false; b.otc = false;
     act(p, kact, kact === 'punt' ? 0.55 : code === 2 || code === -4 ? 0.42 : 0.34, kact === 'kick' ? code : 0); p.throwin = false;
+    for (const q of M.P) if (q.wall) { q.wall = false; q.box = null; if (q.team !== p.team && hyp(q.x - p.x, q.y - p.y) < 14) act(q, 'wall', 0.6); }
     p.cd = 0.3; p.hands = false; p.protect = 0; p.holdT = 0; p.mustPass = false; p.penalty = false; p.sk = null;
     b.fresh = 0.14; b.spin = 0;
     M.kc++;
@@ -993,7 +1011,7 @@ var RCL = (function () {
     const err = (rnd() + rnd() - 1) * spread; // centred, most shots close to where they were aimed
     const ty = tyAim + err;
     const dx = gx - p.x, dy = ty - p.y, l = hyp(dx, dy) || 1;
-    M.stats.shots[p.team]++;
+    M.stats.shots[p.team]++; M.lastShot = { p, t: M.t };
     if (kind === 'chip') {
       const Tt = clamp(l / 15, 0.8, 1.7), vz = (1.9 + 0.5 * G * Tt * Tt) / Tt, h = l / Tt * (1 + 0.06 * Tt);
       kick(M, p, dx / l * h, dy / l * h, vz, 4); b.shot = true; planSave(M, p); return;
@@ -1003,7 +1021,21 @@ var RCL = (function () {
     let zt = drv ? 0.25 + rnd() * 0.3 : fin ? 0.8 + rnd() * 0.8 : 0.25 + power * 1.25 + rnd() * 0.6;
     zt += (rnd() + rnd() - 1) * spread * 0.45 + Math.max(0, power - 0.9) * 6;
     zt = Math.max(0.1, zt);
-    const Tf = l / (sp * 0.93), vz = Math.max(0, (zt - 0.1 + 0.5 * G * Tf * Tf) / Tf);
+    let Tf = l / (sp * 0.93), vz = Math.max(0, (zt - 0.1 + 0.5 * G * Tf * Tf) / Tf);
+    // free kick over a wall: a slower, rising strike that clears the jumping wall and dips under the bar
+    const wl = M.P.filter(q => q.wall && q.team !== p.team);
+    if (wl.length) {
+      const dw = Math.min(...wl.map(q => hyp(q.x - p.x, q.y - p.y)));
+      // using the real ball flight: the fastest strike whose lift clears 2.5 m at the wall and still comes down under the bar
+      const fly = (s2, v) => { const pts = []; const r = ballPath({ x: p.x, y: p.y, z: 0.02, vx: dx / l * s2, vy: dy / l * s2, vz: v, spin: 0 }, gx, 3, pts); let zw = 0; for (const q of pts) if (hyp(q.x - p.x, q.y - p.y) >= dw) { zw = q.z; break; } return { zw, zg: r ? r.z : 9 }; };
+      let pick = null;
+      for (let s2 = Math.min(26, sp); s2 >= 15; s2 -= 0.75) {
+        let lo = 2, hi = 13;
+        for (let it = 0; it < 12; it++) { const mid = (lo + hi) / 2; if (fly(s2, mid).zw < 2.5) lo = mid; else hi = mid; }
+        pick = { s2, v: hi }; if (fly(s2, hi).zg < BARH - 0.3) break;
+      }
+      sp = pick.s2; vz = pick.v + (rnd() + rnd() - 1) * spread * 0.3;
+    }
     let ux = dx / l, uy = dy / l, spin = 0;
     if (fin && d > 8) {
       // aim outside the post and let the curl bring it back in: find the launch angle that curls onto the target
@@ -1151,9 +1183,14 @@ var RCL = (function () {
   function foul(M, p, o) {
     M.fouls = (M.fouls || 0) + 1; M.dbg.foul = (M.dbg.foul || 0) + 1;
     act(o, 'fall', 0.8); o.stun = 0.8;
-    const T = M.teams[o.team], gx = T.dir > 0 ? FL : 0;
+    const T = M.teams[o.team], gx = T.dir > 0 ? FL : 0, behind = frontness(p, o) < -0.4;
     if (Math.abs(o.x - gx) < BOXD && Math.abs(o.y - GY) < BOXW) restart(M, 'pen', o.team, gx - T.dir * 11 * Math.max(K, 0.45), GY, o);
     else restart(M, 'free', o.team, clamp(o.x, 1, FL - 1), clamp(o.y, 1, FW - 1), o);
+    // reckless challenges (through the back, or a slide that misses the ball) get a yellow card
+    if (rnd() < (p.slideT > 0 ? (behind ? 0.6 : 0.3) : behind ? 0.2 : 0.05)) {
+      M.cards = M.cards || {}; M.cards[p.name] = (M.cards[p.name] || 0) + 1;
+      setEv(M, 'Yellow card · ' + p.name, 'card'); act(p, 'dejected', 1.2);
+    }
   }
   function tackle(M, p, human) {
     if (p.tkCd > 0 || p.stun > 0) return;
@@ -1438,7 +1475,11 @@ var RCL = (function () {
     if (M.phase === 'goal' && M.scorer) {
       const sc = M.scorer;
       if (p === sc) { tx = sc.team === 0 ? FL - 3 : 3; ty = sc.y < GY ? 3 : FW - 3; sp = p.spr * 0.8; if (p.actT <= 0) act(p, 'celebrate', 3.4, sc.celeb || 1); }
-      else if (p.team === sc.team && hyp(p.x - sc.x, p.y - sc.y) < 30) { tx = sc.x - p.fx * 1.5; ty = sc.y - p.fy * 1.5; sp = p.jog * 1.1; }
+      else if (p.team === sc.team && hyp(p.x - sc.x, p.y - sc.y) < 30) {
+        // team-mates run to the scorer and jump on him
+        tx = sc.x - p.fx * 1.2; ty = sc.y - p.fy * 1.2; sp = p.spr * 0.85;
+        if (hyp(p.x - sc.x, p.y - sc.y) < 3 && p.actT <= 0) act(p, 'joy', 0.7, 1 + (p.id % 3));
+      }
       else { sp = 1.6; }
       moveTo(M, p, tx, ty, sp, dt, 0.3); return;
     }
@@ -1657,7 +1698,7 @@ var RCL = (function () {
       const d = hyp(p.x - b.x, p.y - b.y);
       let reach = b.passTo === p ? 1.3 : (b.pf != null && p.team !== b.lastTeam ? 0.58 + p.def * 0.004 : 0.8); if (p.gk) reach = Math.max(reach, 1);
       if (sp > 16 && b.passTo !== p) reach *= 0.64;
-      const zmax = p.gk && inBox(p) ? 2.6 : (b.z > 1.2 && (Math.abs(p.x - (p.team === 0 ? FL : 0)) < 18 * K || Math.abs(p.x - (p.team === 0 ? 0 : FL)) < 20 * K)) ? 2.5 : 1.8;
+      const zmax = p.gk && inBox(p) ? 2.6 : p.act === 'wall' ? 2.35 : (b.z > 1.2 && (Math.abs(p.x - (p.team === 0 ? FL : 0)) < 18 * K || Math.abs(p.x - (p.team === 0 ? 0 : FL)) < 20 * K)) ? 2.5 : 1.8;
       if (d < reach && b.z < zmax && d < bd) { bd = d; best = p; }
     }
     if (!best) return;
@@ -1707,8 +1748,12 @@ var RCL = (function () {
       if (!b.owner && ay < GHW + 0.25 && b.z < BARH + 0.15) {
         b.x = end ? FL - 0.05 : 0.05; b.vx = -b.vx * 0.55; b.vz = Math.abs(b.vz) * 0.3;
         b.vy += (b.y > GY ? 1 : -1) * (ay > GHW - 0.11 && b.z < BARH ? 2 : 0); b.shot = false; M.kc++;
-        setEv(M, b.z >= BARH ? 'Off the bar' : 'Off the post', 'post'); return;
+        setEv(M, b.z >= BARH ? 'Off the bar' : 'Off the post', 'post');
+        if (M.lastShot && M.t - M.lastShot.t < 3) act(M.lastShot.p, 'dejected', 1.4);
+        return;
       }
+      const ls = M.lastShot && M.t - M.lastShot.t < 3 && M.lastShot.p.team !== end ? M.lastShot.p : null;
+      if (ls && ay < GHW + 4) act(ls, 'dejected', 1.5);
       if (b.lastTeam === end) restart(M, 'corner', 1 - end, end ? FL - 0.4 : 0.4, b.y < GY ? 0.4 : FW - 0.4);
       else restart(M, 'gk', end, end ? FL - 5.5 * K : 5.5 * K, GY);
       return;
@@ -1720,7 +1765,10 @@ var RCL = (function () {
     if (b.owner) {
       const o = b.owner;
       if (o.throwin) { b.x = clamp(o.x + o.fx * 0.35, 0.05, FL - 0.05); b.y = clamp(o.y + o.fy * 0.35, 0.05, FW - 0.05); b.z = 2.1; }
-      else if (o.hands) { b.x = o.x + o.fx * 0.35; b.y = o.y + o.fy * 0.35; b.z = 1; }
+      else if (o.hands) {
+        b.x = o.x + o.fx * 0.35; b.y = o.y + o.fy * 0.35;
+        const h = (o.holdT || 0) - 0.35; b.z = o.gk && h > 0 && h < 0.8 ? 1 - 0.88 * Math.abs(Math.sin(h / 0.8 * Math.PI)) : 1;
+      }
       else if (o.skOff) { b.x = o.x + o.skOff[0]; b.y = o.y + o.skOff[1]; b.z = o.skOff[2]; o.skOff = null; }
       else {
         const sp = hyp(o.vx, o.vy);
@@ -1810,6 +1858,7 @@ var RCL = (function () {
       }
     }
     for (const h of M.humans) { h.swCd = Math.max(0, h.swCd - dt); h.recvLock = Math.max(0, h.recvLock - dt); }
+    if (M.phase === 'out' || M.phase === 'kickoff') for (const p of M.P) if (!p.gk && p.sta < 45 && p.actT <= 0 && hyp(p.vx, p.vy) < 0.6 && M.ball.owner !== p && rnd() < 0.01) act(p, 'knees', 1.4);
     phaseTick(M, dt);
     const live = M.phase === 'play', ko = M.phase === 'kickoff';
     assignRoles(M);
@@ -1920,7 +1969,7 @@ var RCL3D = (function () {
   let FL = 105, FW = 68, GY = 34, GHW = 3.66, BARH = 2.44, BOXD = 16.5, BOXW = 20.16, HX = FL / 2, HZ = FW / 2, KS = 1;
   function useDims(d) { if (!d) return; FL = d.FL; FW = d.FW; GY = d.GY; GHW = d.GHW; BARH = d.BARH; BOXD = d.BOXD; BOXW = d.BOXW; HX = FL / 2; HZ = FW / 2; KS = FL / 105; }
   const DUR = { kick: 0.32, slide: 0.95, dive: 0.9, head: 0.4, celebrate: 3.4, fall: 0.8, skill: 0.4, throw: 0.32, fake: 0.35, tackle: 0.3,
-    trap: 0.3, throwin: 0.15, jockey: 0.15, shield: 0.15, stepover: 0.55, roulette: 0.65, rainbow: 0.5, dragback: 0.5, burst: 0.22, dejected: 1, clap: 1, chest: 0.45, thigh: 0.38, getup: 0.7, punt: 0.55, catch: 0.6 };
+    trap: 0.3, throwin: 0.15, jockey: 0.15, shield: 0.15, stepover: 0.55, roulette: 0.65, rainbow: 0.5, dragback: 0.5, burst: 0.22, dejected: 1, clap: 1, chest: 0.45, thigh: 0.38, getup: 0.7, punt: 0.55, joy: 0.7, signal: 1.2, wall: 0.6, knees: 1.4, catch: 0.6 };
   const SKIN = ['#E3B594', '#D6A27F', '#C48C66', '#AD7550', '#925D3A', '#76472A', '#5A331D', '#3E2314'];
   const HAIRC = { black: '#141110', dkbrown: '#3A2618', brown: '#6B4728', blond: '#C9A35A', ginger: '#A0522D', grey: '#8E8A84' };
   // per-player look: [skin 0-7 light to dark, hairstyle, hair colour, facial hair 0 none 1 stubble 2 beard 3 goatee]
@@ -2296,7 +2345,11 @@ var RCL3D = (function () {
       });
       // the referee: all black with gold trim, no number
       if (refRig) { scene.remove(refRig.root); refRig = null; }
-      if (info.teams.length > 1) { refRig = makeRig({ kit: ['#15171B', '#E9B949', 'solid'], gk: '#15171B' }, { name: 'Referee', pos: 'REF', phy: 66 }, 7, '', true); refRig.ref = true; }
+      if (info.teams.length > 1) {
+        refRig = makeRig({ kit: ['#15171B', '#E9B949', 'solid'], gk: '#15171B' }, { name: 'Referee', pos: 'REF', phy: 66 }, 7, '', true); refRig.ref = true;
+        const card = new THREE.Mesh(new THREE.PlaneGeometry(0.075, 0.105), new THREE.MeshBasicMaterial({ color: '#F7D51D', side: THREE.DoubleSide }));
+        card.position.set(0.03, -0.37, 0); card.rotation.y = Math.PI / 2; card.visible = false; refRig.elR.add(card); refRig.card = card;
+      }
     }
 
     // ---------- ball trail for shots and long balls ----------
@@ -2322,6 +2375,34 @@ var RCL3D = (function () {
 
     // ---------- animation ----------
     let clock = 0, ballRef = null;
+    // ---------- grass and turf kicked up by slides, dives, falls and hard strikes ----------
+    const PN = 220, pPos = new Float32Array(PN * 3).fill(-50), pVel = new Float32Array(PN * 3), pLife = new Float32Array(PN), pCol = new Float32Array(PN * 3);
+    let pNext = 0;
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+    const parts = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.075, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false }));
+    parts.frustumCulled = false; scene.add(parts);
+    function emitGrass(x, z, n, fx, fz, power) {
+      for (let k = 0; k < n; k++) {
+        const i = pNext; pNext = (pNext + 1) % PN; const j = i * 3, a = Math.random() * Math.PI * 2, sp = (0.6 + Math.random() * 1.6) * power;
+        pPos[j] = x + (Math.random() - 0.5) * 0.3; pPos[j + 1] = 0.03; pPos[j + 2] = z + (Math.random() - 0.5) * 0.3;
+        pVel[j] = Math.cos(a) * sp * 0.6 + fx * sp; pVel[j + 1] = 1.2 + Math.random() * 2.2 * power; pVel[j + 2] = Math.sin(a) * sp * 0.6 + fz * sp;
+        pLife[i] = 0.7 + Math.random() * 0.6;
+        const dirt = Math.random() < 0.3; pCol[j] = dirt ? 0.32 : 0.16 + Math.random() * 0.08; pCol[j + 1] = dirt ? 0.22 : 0.42 + Math.random() * 0.15; pCol[j + 2] = dirt ? 0.12 : 0.1;
+      }
+      pGeo.attributes.color.needsUpdate = true;
+    }
+    function stepParts(dt) {
+      let any = false;
+      for (let i = 0; i < PN; i++) {
+        if (pLife[i] <= 0) continue; any = true; const j = i * 3;
+        pLife[i] -= dt; pVel[j + 1] -= 9.8 * dt;
+        pPos[j] += pVel[j] * dt; pPos[j + 1] += pVel[j + 1] * dt; pPos[j + 2] += pVel[j + 2] * dt;
+        if (pPos[j + 1] < 0.02) { pPos[j + 1] = 0.02; pVel[j] *= 0.5; pVel[j + 2] *= 0.5; pVel[j + 1] = 0; }
+        if (pLife[i] <= 0) pPos[j + 1] = -50;
+      }
+      if (any) pGeo.attributes.position.needsUpdate = true;
+    }
     function animate(rig, p, dt, windup) {
       const x = p.x - HX, z = p.y - HZ;
       let spd, vx, vz;
@@ -2340,7 +2421,15 @@ var RCL3D = (function () {
       rig.yawRate = (rig.yawRate || 0) + (yawStep / Math.max(dt, 1e-3) - (rig.yawRate || 0)) * Math.min(1, dt * 8);
       // how the player is moving relative to where the body faces: running, side-stepping or backpedalling
       const fwd = spd > 0.05 ? (vx * p.fx + vz * p.fy) / spd : 1, lat = spd > 0.05 ? (vx * -p.fy + vz * p.fx) / spd : 0;
-      if (p.act !== rig.act) { rig.prevAct = rig.act; rig.prevSide = rig.side; rig.act = p.act || ''; rig.actStart = clock; rig.side = p.side || 0; }
+      if (p.act !== rig.act) {
+        rig.prevAct = rig.act; rig.prevSide = rig.side; rig.act = p.act || ''; rig.actStart = clock; rig.side = p.side || 0;
+        const a0 = rig.act;
+        if (a0 === 'slide') emitGrass(x + p.fx * 0.6, z + p.fy * 0.6, 22, p.fx, p.fy, 1.3);
+        else if (a0 === 'dive' || a0 === 'fall') emitGrass(x, z, 12, 0, 0, 0.8);
+        else if (a0 === 'kick' && (Math.abs(rig.side) === 2 || rig.side === -4 || rig.side === -1)) emitGrass(x + p.fx * 0.35, z + p.fy * 0.35, 7, p.fx, p.fy, 0.9);
+      }
+      if (rig.act === 'dive' && !rig.landed && clock - rig.actStart > 0.5) { rig.landed = true; emitGrass(x - p.fy * (rig.side || 1) * 1.2, z + p.fx * (rig.side || 1) * 1.2, 14, 0, 0, 0.7); }
+      if (rig.act !== 'dive') rig.landed = false;
       const amp = clamp(spd / 8.5, 0, 1), moving = spd > 0.3;
       // stride frequency rises with speed (about 1.6 Hz jogging, 2.4 Hz sprinting)
       const cad = rig.cad || 1;
@@ -2379,6 +2468,10 @@ var RCL3D = (function () {
         rig.shL.rotation.x = 0.55; rig.shR.rotation.x = -0.55; rig.elL.rotation.z = 0.5; rig.elR.rotation.z = 0.5; B.rotation.z = -0.25;
       }
       const a = rig.act;
+      if (!a && p.hands) { // keeper with the ball in his hands
+        rig.shL.rotation.set(0.25, 0, 1.15); rig.shR.rotation.set(-0.25, 0, 1.15); rig.elL.rotation.z = 0.7; rig.elR.rotation.z = 0.7;
+        if (ballRef && ballRef.z < 0.7) { rig.shL.rotation.z = 0.7; rig.shR.rotation.z = 0.7; B.rotation.z = -0.25; } // bouncing it
+      }
       if (!a) {
         // a quick touch of the ball while dribbling, alternating feet
         const tt = clock - (rig.touchT || -9);
@@ -2469,6 +2562,18 @@ var RCL3D = (function () {
           rig.shL.rotation.set(1.4, 0, 1.6); rig.shR.rotation.set(-1.4, 0, 1.6); rig.headG.rotation.z = -0.45;
         } else if (v === 3) { // aeroplane
           rig.shL.rotation.set(1.5 * k, 0, 0); rig.shR.rotation.set(-1.5 * k, 0, 0); rig.elL.rotation.z = 0.05; rig.elR.rotation.z = 0.05; B.rotation.x = Math.sin(clock * 3) * 0.25;
+        } else if (v === -1) { // pointing to the sky with both hands
+          rig.shL.rotation.set(0.25, 0, 2.55 * k); rig.shR.rotation.set(-0.25, 0, 2.55 * k); rig.elL.rotation.z = 0.05; rig.elR.rotation.z = 0.05; rig.headG.rotation.z = 0.45 * k; B.rotation.z = 0.12 * k;
+        } else if (v === -2) { // finger to the lips, jogging away
+          rig.shR.rotation.set(-0.35, 0, 1.6 * k); rig.elR.rotation.z = 2.35 * k; rig.shL.rotation.set(0.4, 0, 0.3); rig.headG.rotation.z = 0.1;
+        } else if (v === -3) { // knees bent, roaring with fists clenched
+          const pump = Math.abs(Math.sin(clock * 6));
+          B.position.y = -0.18 * k; rig.knL.rotation.z = -0.6 * k; rig.knR.rotation.z = -0.6 * k; rig.hipL.rotation.z = 0.35 * k; rig.hipR.rotation.z = 0.35 * k;
+          rig.shL.rotation.set(0.9, 0, 0.6 + 0.4 * pump); rig.shR.rotation.set(-0.9, 0, 0.6 + 0.4 * pump); rig.elL.rotation.z = 1.9; rig.elR.rotation.z = 1.9; B.rotation.z = 0.15 * k; rig.headG.rotation.z = 0.35 * k;
+        } else if (v === -4 && t > 0.35) { // drop to one knee, arms raised to the crowd
+          const q = Math.min(1, (t - 0.35) * 4);
+          B.position.y = -0.38 * q; rig.hipL.rotation.z = 1.4 * q; rig.knL.rotation.z = -1.5 * q; rig.hipR.rotation.z = -0.2 * q; rig.knR.rotation.z = -1.9 * q;
+          rig.shL.rotation.set(0.7, 0, 2.3 * q); rig.shR.rotation.set(-0.7, 0, 2.3 * q); rig.headG.rotation.z = 0.4 * q;
         } else if (v === 4 && t > 0.55) { // jump, spin and land arms out
           const q = (t - 0.55) / 0.45, j = Math.sin(Math.min(1, q * 2.2) * Math.PI);
           B.position.y = j * 0.55; B.rotation.y = Math.min(1, q * 2.2) * Math.PI;
@@ -2477,6 +2582,21 @@ var RCL3D = (function () {
           rig.shL.rotation.set(0.5 * k, 0, 2.7 * k + Math.sin(clock * 9) * 0.15); rig.shR.rotation.set(-0.5 * k, 0, 2.7 * k - Math.sin(clock * 9) * 0.15);
           rig.elL.rotation.z = 0.2; rig.elR.rotation.z = 0.2; rig.headG.rotation.z = -0.25;
         }
+      } else if (a === 'joy') { // team-mates mobbing the scorer
+        const k = Math.sin(t * Math.PI), v = rig.side || 1;
+        if (v === 1) { B.position.y = k * 0.35; rig.shL.rotation.set(0.4, 0, 2.8); rig.shR.rotation.set(-0.4, 0, 2.8); rig.knL.rotation.z = -0.5 * k; rig.knR.rotation.z = -0.5 * k; }
+        else if (v === 2) { rig.shL.rotation.set(0.1, 0, 1.4); rig.shR.rotation.set(-0.1, 0, 1.4); rig.elL.rotation.z = 1.6; rig.elR.rotation.z = 1.6; B.rotation.z = -0.25; B.position.y = k * 0.12; }
+        else { rig.shR.rotation.set(-0.3, 0, 1.2 + 0.9 * k); rig.elR.rotation.z = 2.0 - 0.6 * k; rig.shL.rotation.set(0.6, 0, 0.3); B.rotation.z = -0.15 * k; rig.headG.rotation.z = 0.3 * k; }
+      } else if (a === 'signal') { // corner taker raises an arm before delivering
+        rig.shR.rotation.set(-0.15, 0, 3.0); rig.elR.rotation.z = 0.05; rig.shL.rotation.set(0.3, 0, 0.2);
+      } else if (a === 'wall') { // the wall jumps as one, hands protecting
+        const j = Math.sin(t * Math.PI);
+        B.position.y = j * 0.42; rig.knL.rotation.z = -0.9 * j; rig.knR.rotation.z = -0.9 * j;
+        rig.shL.rotation.set(-0.25, 0, 0.35); rig.shR.rotation.set(0.25, 0, 0.35); rig.elL.rotation.z = 0.9; rig.elR.rotation.z = 0.9; rig.headG.rotation.z = -0.25 * j;
+      } else if (a === 'knees') { // out of breath, hands on knees
+        const k = Math.min(1, t * 4) * Math.min(1, (1 - t) * 4);
+        B.rotation.z = -0.65 * k; B.position.y = -0.06 * k; rig.hipL.rotation.z = 0.35 * k; rig.hipR.rotation.z = 0.35 * k; rig.knL.rotation.z = -0.45 * k; rig.knR.rotation.z = -0.45 * k;
+        rig.shL.rotation.set(0.15, 0, 0.95 * k); rig.shR.rotation.set(-0.15, 0, 0.95 * k); rig.elL.rotation.z = 0.1; rig.elR.rotation.z = 0.1; rig.headG.rotation.z = 0.4 * k;
       } else if (a === 'fall') {
         // tripped: stumble, throw the hands out and go down on the front
         const k = t < 0.35 ? Math.sin(t / 0.35 * Math.PI / 2) : 1;
@@ -2572,8 +2692,15 @@ var RCL3D = (function () {
       const bl = Math.hypot(b.x - refP.x, b.y - refP.y) || 1; refP.fx = (b.x - refP.x) / bl; refP.fy = (b.y - refP.y) / bl;
       refP.act = R.phase === 'goal' && R.phase !== refP.ph ? '' : refP.act; refP.ph = R.phase;
       animate(refRig, refP, dt, 0);
-      // point to the centre spot after a goal
-      if (R.phase === 'goal') { refRig.shR.rotation.set(-0.3, 0, 1.5); refRig.elR.rotation.z = 0.05; }
+      if (R.evN !== refP.evN) { if (refP.evN != null) { if (R.evK === 'card') refP.cardT = clock; else if (['foul', 'ko', 'half', 'end', 'goal'].includes(R.evK)) refP.whT = clock; } refP.evN = R.evN; }
+      const ct = clock - (refP.cardT || -9), wt = clock - (refP.whT || -9);
+      if (refRig.card) refRig.card.visible = ct < 2.2;
+      if (ct < 2.2) { refRig.shR.rotation.set(-0.12, 0, 3.0 * Math.min(1, ct * 5)); refRig.elR.rotation.z = 0.05; refRig.headG.rotation.z = 0.1; }
+      else if (wt < 1.1) { // whistle to the mouth, then signal with the other arm
+        refRig.shR.rotation.set(-0.35, 0, 1.75); refRig.elR.rotation.z = 2.3;
+        if (wt > 0.35) refRig.shL.rotation.set(0.2, 0, 2.2);
+      }
+      else if (R.phase === 'goal') { refRig.shR.rotation.set(-0.3, 0, 1.5); refRig.elR.rotation.z = 0.05; } // pointing back to the centre spot
     }
     // ---------- goal nets ripple where the ball hits them ----------
     let crowdT = -99, lastPhase = '';
@@ -2615,6 +2742,7 @@ var RCL3D = (function () {
       }
       updateRef(R, dt);
       updateNets(R, dt);
+      stepParts(dt);
       if (R.phase === 'goal' && lastPhase !== 'goal') crowdT = clock;
       lastPhase = R.phase;
       const ca = clock - crowdT;
@@ -2670,6 +2798,13 @@ var RCL3D = (function () {
         camera.position.set(Math.sin(orbit) * rad * flip, hgt, Math.cos(orbit) * rad * flip);
         camera.lookAt(0, 0.6, 0);
         focus.set(0, 0, 0);
+      } else if (R.phase === 'goal' && R.scorerId >= 0 && R.scorerId < R.P.length && clock - crowdT > 0.6) {
+        // goal: the cameras close in on the celebration
+        const sp = R.P[R.scorerId], sx = sp.x - HX, sz = sp.y - HZ, a = (clock - crowdT) * 0.42 + 0.5;
+        const r = portrait ? 10 : 7.2;
+        camera.position.set(sx + Math.sin(a) * r, 2.3, sz + Math.cos(a) * r * flip);
+        camera.lookAt(sx, 1.05, sz);
+        firstFrame = true;
       } else {
         camera.position.set(focus.x, height, focus.z + distBack * flip);
         camera.lookAt(focus.x, 0.6, focus.z - 1.5 * flip);
@@ -3492,7 +3627,7 @@ var RCL3D = (function () {
     $('#intro').hidden = true;
   }
   function doSkip() {
-    if (CINE.kind === 'intro' && !CINE.cut && CINE.t < CINE.dur * 0.55) { CINE.t = CINE.dur * 0.55; return; } // first skip jumps past the line-up
+    if (CINE.kind === 'intro' && !CINE.cut && CINE.t < CINE.dur * 0.62) { CINE.t = CINE.dur * 0.62; return; } // first skip jumps past the line-up
     if (CINE.kind) { endCine(); return; }
     if (M && (mode === 'cpu' || mode === 'host')) E.skipPhase(M);
   }
@@ -3535,16 +3670,21 @@ var RCL3D = (function () {
   function cineView(R, dt) {
     const k = CINE.kind, t = CINE.t, sg = R.flip ? -1 : 1, n = R.P.length / 2;
     if (k === 'intro') {
-      const cutAt = CINE.dur * 0.55;
+      const cutAt = CINE.dur * 0.62, walkEnd = CINE.dur * 0.27;
       if (t < cutAt) {
-        // the teams line up side by side facing the cameras, which track along the line
-        if (!CINE.cp) CINE.cp = cineCopy(R);
-        const cp = CINE.cp;
-        for (const c of cp) {
-          const j = c.i, x = FL / 2 + (c.team ? 1 : -1) * (0.9 + j * 1.15), y = GY + 7 * sg;
-          c.x = x; c.y = y; c.vx = c.vy = 0; c.fx = 0; c.fy = sg; c.act = '';
+        if (!CINE.cp) {
+          CINE.cp = cineCopy(R);
+          // walk-out: both teams come out side by side and take their places in the line
+          for (const c of CINE.cp) { const j = c.i; c.lx = FL / 2 + (c.team ? 1 : -1) * (0.9 + j * 1.15); c.ly = GY + 7 * sg; c.x = c.lx * 0.55 + FL / 2 * 0.45; c.y = c.ly - (9 + j * 0.55) * sg; c.fx = 0; c.fy = sg; c.act = ''; }
         }
-        const a = smooth(t / cutAt), span = 0.9 + (n - 1) * 1.15 + 1, cx = (-span + 2 * span * a);
+        const cp = CINE.cp;
+        if (t < walkEnd) {
+          for (const c of cp) { if (t > c.i * 0.07) walk(c, c.lx, c.ly, 3.6, dt); }
+          return Object.assign({}, R, { P: cp, ball: { x: FL / 2, y: GY, z: 0 }, ctrl: -1, ctrl2: -1, hint: -1, charge: null, ownerTeam: -1, scorerId: -1,
+            cam: { mode: 'look', px: 0, py: 1.7, pz: (7 + 9.5) * sg, lx: 0, ly: 1.1, lz: (7 - 4 - t * 1.2) * sg } });
+        }
+        for (const c of cp) { c.x = c.lx; c.y = c.ly; c.vx = c.vy = 0; c.fx = 0; c.fy = sg; c.act = ''; }
+        const a = smooth((t - walkEnd) / (cutAt - walkEnd)), span = 0.9 + (n - 1) * 1.15 + 1, cx = (-span + 2 * span * a);
         lowerThird(cx < 0 ? 0 : 1);
         return Object.assign({}, R, { P: cp, ball: { x: FL / 2, y: GY, z: 0 }, ctrl: -1, ctrl2: -1, hint: -1, charge: null, ownerTeam: -1, scorerId: -1,
           cam: { mode: 'look', px: cx, py: 1.65, pz: (7 + 6.2) * sg, lx: cx * 0.92, ly: 1.25, lz: 7 * sg } });
@@ -3642,7 +3782,7 @@ var RCL3D = (function () {
     const [qa, qb] = E.matchSquads(SQ[S.my], SQ[S.opp], S.size);
     M = E.newMatch({ sqA: qa, sqB: qb, humans: [{ team: 0 }], diff: S.diff, halfSecs: S.halfMin * 60, size: S.size });
     M.id = ++matchSeq; M.info = teamInfo(qa, qb, [M.teams[0].kit, M.teams[1].kit]); mode = 'cpu'; useDims(M.dims); enterGame();
-    recReset(M); beginIntro(qa, qb, [M.teams[0].kit, M.teams[1].kit], S.size, 8);
+    recReset(M); beginIntro(qa, qb, [M.teams[0].kit, M.teams[1].kit], S.size, 10);
   }
   function viewFromMatch() {
     const h0 = M.humans[0], h1 = M.humans[1];

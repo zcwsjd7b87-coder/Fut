@@ -53,6 +53,15 @@ The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right
 - **Duels:** slide tackles go in on the hip with the lead leg at the ball, fouled players stumble and fall on their front, and anyone who goes to ground gets back up.
 - **Stadium:** the net ripples where the ball hits it, the crowd jumps on goals, and a referee follows play on a diagonal (and points back to the centre after a goal).
 
+### Match moments
+
+- **Walk-out:** the teams come out side by side and form the line-up before kick-off.
+- **Goals:** the cameras close in on the scorer, who picks one of eight celebrations (arms up, knee slide, aeroplane, jump-spin, pointing to the sky, finger to the lips, a crouching roar, dropping to one knee). Team-mates run over to jump on him, the conceding side sinks, and the crowd jumps.
+- **Set pieces:** corner takers raise an arm before delivering. Free kicks within shooting range get a wall of three or four players 9.15 m away that jumps as the kick is struck. Free-kick shots rise to clear the wall and dip under the bar, and finesse free kicks are the way to beat it.
+- **Referee:** blows the whistle for kick-offs, fouls and the end of each half, and shows a yellow card (with a banner) for reckless challenges, especially slides through the back of a player.
+- **Reactions:** shooters put their hands on their heads after a miss or hitting the woodwork, tired players rest hands on knees while the ball is dead, and keepers bounce the ball before releasing it.
+- **Turf:** grass and dirt fly up from slide tackles, dives, falls and hard strikes.
+
 ### Match presentation and Skip
 
 Matches open with the teams lined up side by side and the line-ups on screen, then a fly-in to kick-off. At half-time the players walk off with the score and stats on screen, then the second half opens with its own fly-in. Full-time shows the winners celebrating around the man of the match (losers with hands on heads, a draw applauded) before the result screen. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips each of these; online, each player can skip their own sequences.
