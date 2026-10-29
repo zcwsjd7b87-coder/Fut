@@ -588,7 +588,8 @@ var RCL = (function () {
         else { p.pac = d[2]; p.sho = d[3]; p.pas = d[4]; p.dri = d[5]; p.def = d[6]; p.phy = d[7]; }
         // personal traits so no two players move quite the same: cadence, agility, reaction time
         p.vr = 0.96 + rnd() * 0.08; p.ph = rnd() * 100; p.agi = 0.88 + (gk ? 60 : p.dri) * 0.0028 + rnd() * 0.06; p.lag = 0.32 + rnd() * 0.22 - (p.def - 60) * 0.0015;
-        p.jog = (4.4 + p.pac * 0.016) * p.vr; p.spr = 6.1 + p.pac * 0.033; p.acc = 15 + p.pac * 0.11;
+        // jog ~4 m/s, controlled run ~6 m/s, sprint 8-9 m/s; acceleration like a real athlete (about 8-12 m/s² off the mark)
+        p.jog = (3.3 + p.pac * 0.012) * p.vr; p.run = (4.6 + p.pac * 0.016) * p.vr; p.spr = 6.1 + p.pac * 0.033; p.acc = 6.5 + p.pac * 0.06;
         resetFlags(p);
         T.players.push(p); M.P.push(p);
       });
@@ -732,8 +733,13 @@ var RCL = (function () {
   // Running players carry momentum: the faster they go the wider they turn, and a sharp change of direction
   // means planting and braking first. turnK > 1 makes the human-controlled player a little sharper.
   function accel(p, dvx, dvy, dt, a, turnK) {
-    a = (a || 20) * (p.stun > 0 ? 0.35 : 1);
     const cs = hyp(p.vx, p.vy), ds = hyp(dvx, dvy);
+    {
+      const top = p.spr || 8, base = (p.acc || 10) * (p.hctl ? 1.65 : 1);
+      if (ds > cs + 0.05) a = Math.min(a || 20, base * (1 - 0.6 * Math.min(1, cs / top) * Math.min(1, cs / top)) + 1.5); // speeding up
+      else a = Math.max(Math.min(a || 20, 16), base * 1.15); // slowing down or holding speed
+    }
+    a *= p.stun > 0 ? 0.35 : 1;
     if (cs > 2.4 && ds > 0.6) {
       const ca = Math.atan2(p.vy, p.vx);
       let da = Math.atan2(dvy, dvx) - ca; da = Math.atan2(Math.sin(da), Math.cos(da));
@@ -762,7 +768,12 @@ var RCL = (function () {
       if (d < 2.4 && d > 0.01) { const w = (2.4 - d) / 2.4 * 1.6; gx += dx / d * w; gy += dy / d * w; }
     }
     const dx = gx - p.x, dy = gy - p.y, d = hyp(dx, dy);
-    if (d < 0.9 && sp <= p.jog * 1.05 && lag !== 0) { accel(p, 0, 0, dt, 8); return; }
+    if (d < 0.9 && sp <= p.jog * 1.05 && lag !== 0) {
+      // settled in position: drift a little, the way players shuffle and reset while watching play
+      const wx = gx + Math.sin(M.t * 0.45 + p.ph) * 0.7 - p.x, wy = gy + Math.cos(M.t * 0.33 + p.ph * 1.3) * 0.7 - p.y, wd = hyp(wx, wy);
+      if (wd > 0.25) accel(p, wx / wd * Math.min(1.1, wd), wy / wd * Math.min(1.1, wd), dt, 6); else accel(p, 0, 0, dt, 6);
+      return;
+    }
     const s = Math.min(sp, 0.5 + d * 1.5);
     accel(p, dx / d * s, dy / d * s, dt, p.acc);
   }
@@ -1161,14 +1172,18 @@ var RCL = (function () {
     if (o.sk) ch -= 0.3;
     return clamp(ch, 0.03, 0.94);
   }
+  // The tackler comes away with it, or knocks it on in the direction he's moving and runs onto it;
+  // the player who lost it is off balance for a moment so he can't just pick it straight back up.
   function winBall(M, p, o) {
-    M.dbg.tkw++; o.stun = 0.45; o.cd = 0.5; if (o.sk) o.sk = null;
-    if (p.smother || hyp(p.vx, p.vy) < 6.5 && rnd() < 0.6) takeBall(M, p);
+    M.dbg.tkw++; o.stun = 0.55; o.cd = 0.7; if (o.sk) o.sk = null; o.vx *= 0.4; o.vy *= 0.4;
+    const human = M.humans.some(h => h.ctrl === p), ps = hyp(p.vx, p.vy);
+    if (p.smother || rnd() < (human ? 0.72 : 0.55) || ps < 1.5) takeBall(M, p);
     else {
-      const b = M.ball; b.owner = null; b.passTo = null; b.aim = null;
-      const ux = o.x - p.x, uy = o.y - p.y, ul = hyp(ux, uy) || 1;
-      b.vx = (p.fx * 0.6 + ux / ul * 0.4) * (3 + rnd() * 3) + (rnd() - 0.5) * 2.5; b.vy = (p.fy * 0.6 + uy / ul * 0.4) * (3 + rnd() * 3) + (rnd() - 0.5) * 2.5; b.vz = 0;
-      b.last = p; b.lastTeam = p.team; b.fresh = 0.12; M.kc++;
+      const b = M.ball; b.owner = null; b.aim = null;
+      const ux = p.vx / ps, uy = p.vy / ps, v = ps + 1.2 + rnd() * 1.5, a = (rnd() - 0.5) * 0.5;
+      b.vx = (ux * Math.cos(a) - uy * Math.sin(a)) * v; b.vy = (ux * Math.sin(a) + uy * Math.cos(a)) * v; b.vz = 0;
+      b.x = p.x + ux * 0.5; b.y = p.y + uy * 0.5;
+      b.last = p; b.lastTeam = p.team; b.fresh = 0.2; b.passTo = p; p.chase = 0.8; p.cd = 0; M.kc++;
     }
   }
   function resolveTackle(M, p, o, human) {
@@ -1333,7 +1348,7 @@ var RCL = (function () {
     const p = h.ctrl, inp = h.inp, b = M.ball, T = M.teams[h.team];
     const has = b.owner === p, mine = !!b.owner && b.owner.team === h.team;
     const mx = inp.mx, my = inp.my, mag = hyp(mx, my);
-    let spd = inp.spr ? p.spr : p.jog; if (has) spd *= inp.spr ? 0.88 : 0.95;
+    let spd = inp.spr ? p.spr : p.run; if (has) spd *= inp.spr ? 0.88 : 0.95;
     const o = b.owner;
     const committed = p.lunge > 0 || p.slideT > 0 || !!p.sk || (p.actT > 0 && (p.act === 'fake' || (p.act === 'rainbow' && p.runTo)));
     if (committed) { /* finishing the move */ }
@@ -1425,7 +1440,7 @@ var RCL = (function () {
     const by = ti === 0 ? b.y / FW : 1 - b.y / FW;
     let fx = inPoss ? 0.10 + s[0] * 0.62 + bp * 0.30 : 0.04 + s[0] * 0.56 + bp * 0.26;
     // everyone drifts a little in their own rhythm so the shape breathes instead of moving as one block
-    fx += 0.022 * Math.sin(M.t * 0.31 + p.ph) + (s[0] > 0.6 && inPoss ? 0.035 * Math.sin(M.t * 0.7 + p.ph * 1.7) : 0);
+    fx += (s[0] < 0.3 ? 0.004 : 0.022) * Math.sin(M.t * 0.31 + p.ph) + (s[0] > 0.6 && inPoss ? 0.035 * Math.sin(M.t * 0.7 + p.ph * 1.7) : 0);
     fx = clamp(fx, 0.05, 0.9);
     let fy = 0.5 + (s[1] - 0.5) * (inPoss ? 1.05 : 0.78) + (by - 0.5) * 0.32 + 0.03 * Math.sin(M.t * 0.23 + p.ph * 2.3);
     fy = clamp(fy, 0.04, 0.96);
@@ -1502,7 +1517,8 @@ var RCL = (function () {
         if (live && M.roles.presser[p.team] === p) {
           // close down goal-side, aiming at the ball rather than the man, then pick a moment to tackle
           const bx = b.x + o.vx * 0.2, by = b.y + o.vy * 0.2, behind = frontness(p, o) < -0.2;
-          const gs = behind ? 1.6 : 0.55;
+          const facing = frontness(p, o) > 0.4, good = tackleChance(M, p, o, false) > 0.45 || (b.off || 0.7) > 0.95 || hyp(o.vx, o.vy) < 2;
+          const gs = behind ? 1.6 : facing && !good ? 1.35 : 0.55;
           tx = bx + ux / ul * gs; ty = by + uy / ul * gs; sp = hyp(p.x - o.x, p.y - o.y) > 4 ? p.spr * 0.97 : p.jog * 1.05; lag = 0;
           aiTackleTry(M, p, o);
         } else if (live && M.roles.cover[p.team] === p) {
@@ -1519,6 +1535,12 @@ var RCL = (function () {
       }
     }
     moveTo(M, p, tx, ty, sp, dt, lag);
+  }
+  // after a short pass forward, sometimes burst past the defender for the return ball (a one-two)
+  function aiPassAndGo(M, p) {
+    const m = M.ball.passTo, dir = M.teams[p.team].dir;
+    if (!m || hyp(m.x - p.x, m.y - p.y) > 16 || rnd() > 0.35 + (p.pas - 75) * 0.01) return;
+    p.goRun = { x: clamp(p.x + dir * 12 * Math.max(K, 0.5), 2, FL - 2), y: clamp(p.y + (m.y - p.y) * 0.3, 2, FW - 2), t: 2.6 };
   }
   function aiCarrier(M, p, dt) {
     const T = M.teams[p.team], dir = T.dir, gx = dir > 0 ? FL : 0, lv = M.lvl[p.team];
@@ -1560,8 +1582,13 @@ var RCL = (function () {
         }
         if (best) { cross(M, p, best); return; }
       }
-      if (pr < 2.1 + (80 - p.dri) * 0.02 && rnd() < 0.35 + lv * 0.3 + (p.pas - p.dri) * 0.006 && doPass(M, p, 0, 0, 'ground', false)) return;
-      if (p.holdT > 2.2 + p.dri * 0.025 * rnd() && doPass(M, p, 0, 0, rnd() < 0.3 ? 'thru' : 'ground', false)) return;
+      if (pr < 2.1 + (80 - p.dri) * 0.02 && rnd() < 0.35 + lv * 0.3 + (p.pas - p.dri) * 0.006 && doPass(M, p, 0, 0, 'ground', false)) { aiPassAndGo(M, p); return; }
+      // pressed with nothing on: protect the ball, turning the body between the defender and the ball
+      if (pr < 1.8 && p.holdT < 1.6 && rnd() < 0.5) {
+        let nd = 9, no = null; for (const o of M.teams[1 - p.team].players) { const d = hyp(o.x - p.x, o.y - p.y); if (d < nd) { nd = d; no = o; } }
+        if (no) { const ax = p.x - no.x, ay = p.y - no.y, al = hyp(ax, ay) || 1; p.aiDir = [ax / al * 0.6 + dir * 0.4, ay / al * 0.6]; const l2 = hyp(p.aiDir[0], p.aiDir[1]) || 1; p.aiDir = [p.aiDir[0] / l2, p.aiDir[1] / l2]; p.aiSpr = false; p.protect = Math.max(p.protect, 0.25); act(p, 'shield', 0.4); return; }
+      }
+      if (p.holdT > 2.2 + p.dri * 0.025 * rnd() && doPass(M, p, 0, 0, rnd() < 0.3 ? 'thru' : 'ground', false)) { aiPassAndGo(M, p); return; }
       if (rnd() < 0.08 + lv * 0.08 + (p.pas - 75) * 0.004) { const r = bestPassTarget(M, p, dir, 0, true); if (r && r.s > 4) { doPass(M, p, dir, 0, 'thru', false); return; } }
       if (pr < 3 && p.skillCd <= 0 && rnd() < 0.08 + lv * 0.15 + (p.dri - 75) * 0.008) {
         const r = rnd(); skill(M, p, r < 0.38 ? '' : r < 0.58 ? 'down' : r < 0.78 ? 'right' : r < 0.9 ? 'left' : p.dri > 85 ? 'up' : '');
@@ -1863,6 +1890,8 @@ var RCL = (function () {
     const live = M.phase === 'play', ko = M.phase === 'kickoff';
     assignRoles(M);
     const ctl = new Set();
+    for (const p of M.P) p.hctl = false;
+    for (const h of M.humans) if (h.ctrl) h.ctrl.hctl = true;
     for (const h of M.humans) {
       if (h.ctrl) {
         ctl.add(h.ctrl);
@@ -1901,7 +1930,10 @@ var RCL = (function () {
         if (p.stun > 0 || p.tkCd > 0 || p.gk || p.slideT > 0) continue;
         const isH = M.humans.some(h => h.ctrl === p);
         const db = hyp(bl.x - p.x, bl.y - p.y), fr = frontness(p, o);
-        if (db < (isH ? 0.8 : 0.62) && fr > -0.2) {
+        // stepping between the carrier and the ball counts as getting to it
+        const sx = bl.x - o.x, sy = bl.y - o.y, sl2 = sx * sx + sy * sy || 1, tt = clamp(((p.x - o.x) * sx + (p.y - o.y) * sy) / sl2, 0, 1.3);
+        const dSeg = hyp(o.x + sx * tt - p.x, o.y + sy * tt - p.y);
+        if ((db < (isH ? 1.05 : 0.68) || (isH && dSeg < 0.6 && tt > 0.3)) && fr > -0.2) {
           p.tkCd = isH ? 0.35 : 0.7;
           M.dbg.poke = (M.dbg.poke || 0) + 1;
           if (rnd() < tackleChance(M, p, o, isH) * (isH ? 1.12 : 0.8)) { act(p, 'tackle', 0.3); winBall(M, p, o); }
@@ -2459,7 +2491,10 @@ var RCL3D = (function () {
       // keep an eye on the ball
       if (ballRef) {
         let rel = -Math.atan2(ballRef.y - p.y, ballRef.x - p.x) - rig.root.rotation.y; rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-        const want = clamp(rel, -0.9, 0.9) * (Math.abs(rel) < 2.2 ? 1 : 0);
+        let want = clamp(rel, -0.9, 0.9) * (Math.abs(rel) < 2.2 ? 1 : 0);
+        // now and then a quick check over the shoulder, like real players scanning before the ball arrives
+        const sc = (clock * 0.31 + rig.phase * 0.17) % 1;
+        if (!rig.act && spd < 6.5 && sc < 0.09) want = (Math.floor(clock * 0.31 + rig.phase * 0.17) % 2 ? 1 : -1) * 1.15;
         rig.look = (rig.look || 0) + (want - (rig.look || 0)) * Math.min(1, dt * 6);
       }
       rig.headG.rotation.set(0, rig.look || 0, 0.1 * amp - (ballRef && ballRef.z < 0.5 ? 0.12 : 0));

@@ -62,6 +62,12 @@ The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right
 - **Reactions:** shooters put their hands on their heads after a miss or hitting the woodwork, tired players rest hands on knees while the ball is dead, and keepers bounce the ball before releasing it.
 - **Turf:** grass and dirt fly up from slide tackles, dives, falls and hard strikes.
 
+### Tackling and movement (latest)
+
+- **Get in front of the dribbler and you win it:** stepping into the ball's path, or between the carrier and the ball, with your controlled player wins the ball most of the time (about 9 in 10 when you stand in his path). The tackler comes away with it or knocks it on in the direction he's running and collects it, and the player who lost it is off balance for a moment, so he can't just pick it back up.
+- **Movement like real players:** realistic acceleration (strong off the mark, tapering near top speed, braking harder than accelerating), proper jogging pace off the ball, players who keep shuffling and resetting instead of freezing in place, quick shoulder checks before the ball arrives, and a tidy back line. Your controlled player is a little sharper than the AI so the controls stay responsive.
+- **Smarter AI:** defenders jockey at a distance and step in when the moment is right (a heavy touch, the carrier slowing down, or a good angle); carriers protect the ball with their body when pressed, play one-twos after short passes, and pass out of pressure.
+
 ### Match presentation and Skip
 
 Matches open with the teams lined up side by side and the line-ups on screen, then a fly-in to kick-off. At half-time the players walk off with the score and stats on screen, then the second half opens with its own fly-in. Full-time shows the winners celebrating around the man of the match (losers with hands on heads, a draw applauded) before the result screen. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips each of these; online, each player can skip their own sequences.
