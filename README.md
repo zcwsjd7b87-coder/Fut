@@ -38,6 +38,12 @@ The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right
 - **Skill moves follow a set path:** the ball stays at the player's feet through step overs, roulettes and drag backs, and rainbow flicks and heel-to-heels knock it past the defender for you to run onto. Point the stick sideways to choose which way you go. Defenders close by can be wrong-footed; low-DRI players can take a heavy touch.
 - **Players carry momentum.** They lean and bank into turns, plant before changing direction, side-step and backpedal while watching the ball, walk when the shape is set, and sprint only when it matters. Attackers make their own runs (in behind, coming short, full-backs overlapping), and through balls lead them.
 
+### Shooting and goalkeeping
+
+- **Placement:** point the stick to one side of the goal to place the shot there. Running straight at goal (or no stick) uses shot assist, which picks the near or far post, whichever line stays furthest from the keeper. Shots never default to the middle.
+- **Accuracy and height** depend on SHO, distance, the angle, too much power, pressure and shooting on the run. Finesse shots are solved so the curl brings them back inside the far post; driven shots stay low; harder shots rise.
+- **Keepers save what they can physically reach:** they react after a moment (REF), dive sideways at a speed set by DIV, and have an arm's reach. Low and high corners at full stretch are the hardest to reach, a curling shot is read late, and slow lobs give them time to get back. Keepers stand on the line that splits the angle between the ball and the posts, and come off their line to narrow the angle in one-on-ones.
+
 ### Match presentation and Skip
 
 Matches open with the teams lined up side by side and the line-ups on screen, then a fly-in to kick-off. At half-time the players walk off with the score and stats on screen, then the second half opens with its own fly-in. Full-time shows the winners celebrating around the man of the match (losers with hands on heads, a draw applauded) before the result screen. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips each of these; online, each player can skip their own sequences.

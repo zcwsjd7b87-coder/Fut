@@ -604,7 +604,7 @@ var RCL = (function () {
     p.cd = 0; p.stun = 0; p.protect = 0; p.tkCd = 0; p.lunge = 0; p.pendTk = false; p.runTo = null; p.box = null;
     p.hands = false; p.frozen = false; p.mustPass = false; p.diving = false; p.holdT = 0; p.think = 0;
     p.act = ''; p.actT = 0; p.side = 0; p.slideT = 0; p.skillCd = 0; p.recv = null; p.goRun = null; p.rush = 0; p.burst = 0; p.throwin = false;
-    p.sk = null; p.orun = null; p.runCd = 1 + rnd() * 3; p.atx = null; p.aty = null; p.penalty = false;
+    p.sk = null; p.plan = null; p.orun = null; p.runCd = 1 + rnd() * 3; p.atx = null; p.aty = null; p.penalty = false;
   }
   function nearestOutfield(M, ti, x, y, excl) {
     let best = null, bd = 1e9;
@@ -927,32 +927,130 @@ var RCL = (function () {
     if (kind === 'go') p.goRun = { x: clamp(p.x + dir * 14 * Math.max(K, 0.5), 2, FL - 2), y: p.y + (GY - p.y) * 0.25, t: 3 };
     return true;
   }
+  // ---------- shooting ----------
+  // Where on the goal the shot is going. With the stick pointing well to one side of the goal you place it there;
+  // running straight at goal (or no stick) picks the corner with more space beside the keeper, like FC's shot assist.
+  function shotTargetY(M, p, aim, kind) {
+    const T = M.teams[p.team], gx = T.dir > 0 ? FL : 0, g = M.teams[1 - p.team].players[0], edge = GHW - 0.4;
+    let ty = null;
+    if (typeof aim === 'number') ty = GY + clamp(aim, -1, 1) * edge;
+    else if (aim && (aim.x || aim.y)) {
+      const tgx = gx - p.x;
+      if (aim.x * T.dir > 0.15) {
+        const hit = p.y + aim.y * tgx / aim.x; // where the stick line meets the goal line
+        if (Math.abs(hit - GY) > 1.1) ty = GY + clamp(hit - GY, -edge, edge);
+      } else if (Math.abs(aim.y) > 0.5) ty = GY + Math.sign(aim.y) * edge; // stick across the goal: that corner
+    }
+    if (ty == null) {
+      // shot assist: the spot on the goal whose line stays furthest from the keeper (near post or far post)
+      let best = GY, bs = -1;
+      const far = Math.sign(GY - p.y) || 1; // finesse shots curl in at the far post
+      for (let k = -1; k <= 1.001; k += 0.1) {
+
+        const y = GY + k * edge, dx = gx - p.x, dy = y - p.y, L = hyp(dx, dy) || 1;
+        const t = clamp(((g.x - p.x) * dx + (g.y - p.y) * dy) / (L * L), 0, 1);
+        const gap = hyp(p.x + dx * t - g.x, p.y + dy * t - g.y) - Math.abs(k) * 0.35 + (kind === 'finesse' && Math.sign(k) === far ? 0.6 : 0); // keep off the post; finesse likes the far post
+        if (gap > bs) { bs = gap; best = y; }
+      }
+      ty = best + (rnd() - 0.5) * 0.4;
+    }
+    return ty;
+  }
+  // follow a ball with the same physics as stepBall until it reaches x = xLine
+  function ballPath(b0, xLine, maxT, samples) {
+    const b = { x: b0.x, y: b0.y, z: b0.z, vx: b0.vx, vy: b0.vy, vz: b0.vz, spin: b0.spin || 0 }, h = 1 / 120;
+    let t = 0, n = 0;
+    const side = Math.sign(xLine - b.x) || 1;
+    while (t < (maxT || 3)) {
+      b.vz -= G * h; b.z += b.vz * h;
+      if (b.z <= 0) { b.z = 0; if (b.vz < -2) { b.vz = -b.vz * 0.5; b.vx *= 0.85; b.vy *= 0.85; } else b.vz = 0; }
+      if (b.spin) { const s0 = hyp(b.vx, b.vy) || 1; b.vx += -b.vy / s0 * b.spin * h; b.vy += b.vx / s0 * b.spin * h; b.spin *= Math.max(0, 1 - h * (b.z > 0.05 ? 0.4 : 3)); }
+      const sp = hyp(b.vx, b.vy);
+      if (sp > 0) { const dec = (b.z > 0.05 ? 0.12 * sp : 1.4 + 0.22 * sp) * h, ns = Math.max(0, sp - dec); b.vx *= ns / sp; b.vy *= ns / sp; }
+      if (sp < 0.5) return null;
+      b.x += b.vx * h; b.y += b.vy * h; t += h;
+      if (samples && (n++ & 1)) samples.push({ t, x: b.x, y: b.y, z: b.z, sp });
+      if ((b.x - xLine) * side >= 0) return { t, y: b.y, z: b.z, sp };
+    }
+    return null;
+  }
   // Shoot button: normal | chip (up) | finesse (down) | fake (left) | driven (right)
   function shoot(M, p, power, aim, em, kind) {
     const T = M.teams[p.team], gx = T.dir > 0 ? FL : 0, b = M.ball;
-    if (aim == null) aim = (p.y < GY ? 1 : -1) * (0.45 + rnd() * 0.35);
-    const d = hyp(gx - p.x, GY - p.y), acc = p.sho / 100, fin = kind === 'finesse';
-    const err = (rnd() - 0.5) * 2 * ((1 - acc) * 3.2 + Math.max(0, power - 0.88) * 5 + d * 0.04) * (em || 1) * (fin ? 0.85 : kind === 'driven' ? 1.15 : 1);
-    const ty = GY + clamp(aim, -1, 1) * 2.9 + err;
+    const human = M.humans.some(h => h.ctrl === p);
+    const d = hyp(gx - p.x, GY - p.y), acc = p.sho / 100, fin = kind === 'finesse', drv = kind === 'driven';
+    const tyAim = shotTargetY(M, p, aim, kind);
+    // how far off it goes: shooting skill, distance, too much power, the angle, pressure and shooting on the run
+    const pr = nearestOppDist(M, p), sp0 = hyp(p.vx, p.vy);
+    const ang = Math.abs(p.y - GY) / Math.max(4, Math.abs(gx - p.x));
+    let spread = (1 - acc) * 2.6 + d * 0.035 + Math.max(0, power - 0.86) * 4 + Math.min(1.2, ang * 0.5) + (pr < 1.5 ? 0.35 : 0) + Math.max(0, sp0 - 6) * 0.06;
+    spread *= (em || 1) * (fin ? 0.8 : drv ? 1.15 : 1) * (human ? 0.85 : 1);
+    const err = (rnd() + rnd() - 1) * spread; // centred, most shots close to where they were aimed
+    const ty = tyAim + err;
     const dx = gx - p.x, dy = ty - p.y, l = hyp(dx, dy) || 1;
     M.stats.shots[p.team]++;
     if (kind === 'chip') {
       const Tt = clamp(l / 15, 0.8, 1.7), vz = (1.9 + 0.5 * G * Tt * Tt) / Tt, h = l / Tt * (1 + 0.06 * Tt);
-      kick(M, p, dx / l * h, dy / l * h, vz); b.shot = true; return;
+      kick(M, p, dx / l * h, dy / l * h, vz); b.shot = true; planSave(M, p); return;
     }
-    const drv = kind === 'driven';
-    let sp = 13 + power * 15 + p.sho * 0.05; if (fin) sp *= 0.86; if (drv) sp *= 1.08;
-    const vz = drv ? 0.15 + rnd() * 0.5 : 0.4 + power * power * 4 + d * 0.03 + rnd() * 0.6 + Math.max(0, power - 0.9) * 5 - (fin ? 0.5 : 0);
+    let sp = 14 + power * 14 + p.sho * 0.05; if (fin) sp *= 0.84; if (drv) sp *= 1.08;
+    // the height it's aimed at: driven shots skim the grass, finesse shots curl in at mid height, harder shots rise
+    let zt = drv ? 0.25 + rnd() * 0.3 : fin ? 0.8 + rnd() * 0.8 : 0.25 + power * 1.25 + rnd() * 0.6;
+    zt += (rnd() + rnd() - 1) * spread * 0.45 + Math.max(0, power - 0.9) * 6;
+    zt = Math.max(0.1, zt);
+    const Tf = l / (sp * 0.93), vz = Math.max(0, (zt - 0.1 + 0.5 * G * Tf * Tf) / Tf);
     let ux = dx / l, uy = dy / l, spin = 0;
     if (fin && d > 8) {
+      // aim outside the post and let the curl bring it back in: find the launch angle that curls onto the target
       const side = (ty > p.y ? 1 : -1) * T.dir;
       spin = -side * 7;
-      const t = l / (sp * 0.92), off = 0.5 * Math.abs(spin) * t * t, th = Math.atan2(off, l) * side;
+      let th = 0;
+      for (let it = 0; it < 4; it++) {
+        const c = Math.cos(th), sn = Math.sin(th), vx = (ux * c - uy * sn) * sp, vy = (ux * sn + uy * c) * sp;
+        const r = ballPath({ x: p.x, y: p.y, z: 0.02, vx, vy, vz, spin }, gx, 3);
+        if (!r) break;
+        th += Math.atan2(ty - r.y, l) * T.dir;
+      }
       const c = Math.cos(th), sn = Math.sin(th);
       [ux, uy] = [ux * c - uy * sn, ux * sn + uy * c];
     }
-    kick(M, p, ux * sp, uy * sp, Math.max(0, vz));
+    kick(M, p, ux * sp, uy * sp, vz);
     b.spin = spin; b.shot = true;
+    planSave(M, p);
+  }
+  // The keeper's chance is worked out from what a keeper could physically reach: he reacts after a moment,
+  // dives sideways at a speed set by his ratings, and has an arm's reach. Shots into the corners beat him,
+  // shots near him get saved.
+  function planSave(M, p) {
+    const b = M.ball, g = M.teams[1 - p.team].players[0], T = M.teams[g.team], gx = T.dir > 0 ? 0 : FL, inw = T.dir;
+    g.plan = null;
+    const path = [], atLine = ballPath(b, gx, 3, path);
+    if (!path.length) return;
+    const onTarget = !!atLine && Math.abs(atLine.y - GY) < GHW - 0.11 && atLine.z < BARH;
+    const react = clamp(0.3 - (g.ref - 70) * 0.006, 0.12, 0.34);
+    const dive = 3.2 + (g.div - 70) * 0.06, arm = 0.82 + g.div * 0.002, maxLat = 1.8 + (g.div - 70) * 0.03;
+    // the best point on the ball's path the keeper can get a hand to (a dive for quick shots, running back for slow lobs)
+    let best = null;
+    for (const q of path) {
+      if ((q.x - g.x) * inw > 1.5 && q.t < 0.25) continue; // still on the shooter's boot
+      const d = hyp(q.x - g.x, q.y - g.y);
+      const cover = Math.min(arm + (q.t < 0.35 ? 0.3 : 0) + Math.max(0, q.t - react) * dive, maxLat + Math.max(0, q.t - 0.5) * 2.4 + Math.max(0, q.t - 1.0) * 3) * (b.spin ? 0.88 : 1); // curl is read late
+      // full-stretch saves are hardest low in the corner and up high
+      const need = d + Math.max(0, q.z - 2.05) * 1.25 + (d > 1.3 ? (q.z < 0.45 ? 0.3 : q.z > 1.55 ? 0.25 : 0) : 0);
+      const m = cover - need;
+      if (!best || m > best.m) best = { m, q, d };
+    }
+    const q = best.q, margin = best.m;
+    const lv = M.humans.some(h => h.team === g.team) ? 0.5 : M.lvl[g.team];
+    let save = false, hold = false;
+    if (onTarget) {
+      const pSave = margin > 0 ? clamp(0.6 + margin * 0.4 + (g.ref - 82) * 0.012 + (lv - 0.5) * 0.2 - Math.max(0, q.sp - 26) * 0.03, 0.3, 0.96) : 0.03;
+      save = rnd() < pSave;
+      hold = save && q.sp < 24 && margin > 0.35 && rnd() < 0.35 + (g.han - 78) * 0.025;
+    }
+    const dx = q.x - g.x, dy = q.y - g.y, dl = hyp(dx, dy) || 1, go = save ? Math.max(0, dl - arm * 0.8) : Math.max(0, Math.min(dl, Math.min(maxLat, arm + Math.max(0, q.t - react) * dive)) - arm * 0.6);
+    g.plan = { at: M.t + Math.max(react, q.t - 0.42), until: M.t + Math.max(q.t, atLine ? atLine.t : q.t) + 0.35, t: M.t + q.t, x: q.x, y: q.y, z: q.z, dir: Math.sign(dy) || 1, save, hold,
+      px: g.x + dx / dl * go, py: g.y + dy / dl * go, dove: false, done: false, watch: !onTarget && margin < -0.6 };
   }
   function fakeShot(M, p) {
     act(p, 'fake', 0.35); p.vx *= 0.3; p.vy *= 0.3; p.protect = Math.max(p.protect, 0.4); p.skillCd = 0.6;
@@ -1195,7 +1293,7 @@ var RCL = (function () {
     else accel(p, 0, 0, dt, 14);
     if (!live) { h.pressing = false; return; }
     const dx = mag > 0.25 ? mx / mag : p.fx, dy = mag > 0.25 ? my / mag : p.fy;
-    const aim = mag > 0.3 ? my / mag : null;
+    const aim = mag > 0.3 ? { x: mx / mag, y: my / mag } : null;
     if (h.queued) { h.queued.t -= dt; if (h.queued.t <= 0) h.queued = null; }
     if (has) {
       if (inp.b1) { if (doPass(M, p, dx, dy, passKind(inp.g1), true)) h.recvLock = 0.45; }
@@ -1383,7 +1481,7 @@ var RCL = (function () {
         c *= 0.6 + lv * 0.6;
         if (rnd() < c) {
           const pow = clamp(0.55 + dG * 0.012 + rnd() * 0.2, 0.5, 0.95);
-          const aim = (p.y < GY ? 1 : -1) * (0.5 + rnd() * 0.45) * (rnd() < 0.25 ? -1 : 1);
+          const aim = rnd() < 0.7 ? null : (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.35);
           const gk = M.teams[1 - p.team].players[0], gkOut = Math.abs(gk.x - gx) > 5.5;
           shoot(M, p, pow, aim, 1.2 - lv * 0.5, gkOut && dG < 24 && rnd() < 0.5 ? 'chip' : dG > 12 && rnd() < 0.5 ? 'finesse' : 'normal'); return;
         }
@@ -1429,6 +1527,15 @@ var RCL = (function () {
     if (tt < 0 || tt > 2.2) return false;
     return Math.abs(b.y + b.vy * tt - GY) < GHW + 0.8;
   }
+  // point at a given depth off the goal line on the bisector of the angle ball–near post–far post
+  function bisector(bx, by, gx, depth, inw) {
+    const ax = gx - bx, ay1 = GY - GHW - by, ay2 = GY + GHW - by, l1 = hyp(ax, ay1) || 1, l2 = hyp(ax, ay2) || 1;
+    const vx = ax / l1 + ax / l2, vy = ay1 / l1 + ay2 / l2;
+    const x = gx + inw * depth;
+    if (Math.abs(vx) < 1e-3) return [x, clamp(by, GY - GHW + 0.3, GY + GHW - 0.3)];
+    const y = by + (x - bx) * vy / vx;
+    return [x, clamp(y, GY - GHW + 0.25, GY + GHW - 0.25)];
+  }
   function gkAI(M, g, dt) {
     const T = M.teams[g.team], b = M.ball, gx = T.dir > 0 ? 0 : FL, inw = T.dir, live = M.phase === 'play';
     g.diving = false;
@@ -1439,6 +1546,17 @@ var RCL = (function () {
       return;
     }
     let tx = null, ty = null, sp = g.jog, a = 20;
+    const pl = g.plan;
+    if (pl && (!b.shot || b.owner || M.t > pl.until)) g.plan = null;
+    else if (pl) {
+      // set feet, then explode sideways at the right moment
+      if (M.t >= pl.at && !pl.watch) {
+        const ex = pl.px - g.x, ey = pl.py - g.y, el = hyp(ex, ey), vmax = (pl.t - M.t > 0.9 ? 5.5 : 3.4 + (g.div - 70) * 0.07);
+        if (!pl.dove && (el > 0.6 || pl.z > 1.9) && pl.t - M.t < 0.5) { pl.dove = true; act(g, 'dive', 0.9, pl.dir * inw > 0 ? 1 : -1); }
+        const v = Math.min(vmax, el * 9); g.vx = el > 0.01 ? ex / el * v : 0; g.vy = el > 0.01 ? ey / el * v : 0; g.diving = true; return;
+      }
+      g.vx *= 0.7; g.vy *= 0.7; return;
+    }
     if (!b.owner && (b.shot || onGoal(M, g)) && b.lastTeam !== g.team && b.vx * inw < 0) {
       const tt = (gx + inw * 0.7 - b.x) / b.vx;
       if (tt > 0 && tt < 1.6) { tx = gx + inw * 0.7; ty = clamp(b.y + b.vy * tt, GY - GHW - 0.8, GY + GHW + 0.8); sp = 4 + (g.div - 70) * 0.13; a = 34 + g.ref * 0.08; g.diving = true; }
@@ -1452,13 +1570,18 @@ var RCL = (function () {
     }
     const o = b.owner;
     if (tx === null && live && o && o.team !== g.team && Math.abs(o.x - gx) < BOXD && Math.abs(o.y - GY) < BOXW && hyp(o.x - g.x, o.y - g.y) < 9 * Math.max(K, 0.6)) {
-      tx = o.x; ty = o.y; sp = g.spr * 0.9;
+      // one on one: come off the line to narrow the angle, and only go to ground at the carrier's feet when he's very close
+      const od = hyp(o.x - gx, o.y - GY) || 1, dd = hyp(o.x - g.x, o.y - g.y);
+      if (dd < 2.6) { tx = o.x; ty = o.y; }
+      else { const depth = Math.min(Math.abs(o.x - gx) * 0.5, 4.5 * Math.max(K, 0.5) + (g.gpos - 80) * 0.05); const bp = bisector(o.x, o.y, gx, depth, inw); tx = bp[0]; ty = bp[1]; }
+      sp = g.spr * 0.85;
       if (g.tkCd <= 0 && hyp(o.x - g.x, o.y - g.y) < 1.5) { g.tkCd = 0.8; o.protect = 0; g.smother = true; resolveTackle(M, g, o, false); g.smother = false; }
     }
     if (tx === null) {
+      // stand on the line that splits the angle between the ball and the two posts
       const dB = hyp(b.x - gx, b.y - GY) || 1;
-      const off = clamp(dB * 0.12, 0.8, 4.5 * Math.max(K, 0.4)) * (0.75 + g.gpos * 0.003);
-      tx = gx + (b.x - gx) / dB * off; ty = clamp(GY + (b.y - GY) / dB * off, GY - GHW - 1, GY + GHW + 1);
+      const off = clamp(dB * 0.12, 0.7, 4.5 * Math.max(K, 0.4)) * (0.75 + g.gpos * 0.003);
+      const bp = bisector(b.x, b.y, gx, off, inw); tx = bp[0]; ty = bp[1];
       if ((tx - gx) * inw < 0.5) tx = gx + inw * 0.5;
     }
     steer(g, tx, ty, sp, dt, a);
@@ -1468,8 +1591,23 @@ var RCL = (function () {
     for (const T of M.teams) {
       const g = T.players[0];
       if (g.team === b.lastTeam || g.cd > 0) continue;
+      const pl = g.plan;
+      if (pl && b.shot) {
+        if (pl.done || M.t < pl.t - 0.03) continue;
+        pl.done = true;
+        if (!b.otc && Math.abs(b.y - GY) < GHW) { b.otc = true; M.stats.ot[b.lastTeam]++; }
+        if (!pl.save) continue;
+        if (pl.hold) { takeBall(M, g); g.hands = true; g.protect = 99; act(g, 'catch', 0.6, g.act === 'dive' ? g.side : 0); setEv(M, 'Saved', 'save'); }
+        else {
+          const wide = rnd() < 0.45; // tipped round the post / over the bar, or pushed back into play
+          b.vx = T.dir * (wide ? 1.5 + rnd() * 2 : 4 + rnd() * 5); b.vy = pl.dir * (wide ? 6 + rnd() * 5 : 3 + rnd() * 5); b.vz = pl.z > 1.6 ? 4 + rnd() * 2 : 1.5 + rnd() * 2.5;
+          b.shot = false; b.last = g; b.lastTeam = g.team; b.passTo = null; g.cd = 0.5; M.kc++; setEv(M, 'Saved', 'save');
+        }
+        g.plan = null;
+        continue;
+      }
       if (!b.shot && !onGoal(M, g)) continue;
-      const d = hyp(g.x - b.x, g.y - b.y), reach = 1 + (g.div - 70) * 0.035 + (g.diving ? 0.5 : 0);
+      const d = hyp(g.x - b.x, g.y - b.y), reach = 0.9 + (g.div - 70) * 0.02 + (g.diving ? 0.35 : 0);
       if (d < reach && b.z < 2.75) {
         const sp = hyp(b.vx, b.vy);
         const lat = (b.x - g.x) * -g.fy + (b.y - g.y) * g.fx;
