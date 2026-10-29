@@ -26,6 +26,8 @@ Defending: **Switch**, **Slide**, and **Sprint & Tackle** (hold to jockey and cl
 
 Keyboard: WASD/arrows move · Pass J, U lob, Y pass and go, H driven lob, N driven · Through L, O lofted, R run / keeper rush, I dinked, M driven · Shoot K or Space, C chip, F finesse, G fake, B driven · Shift sprint, E step over / tackle, Q rainbow, Z roulette, X drag back, V heel to heel · Enter skip · P pause.
 
+Players are built with human proportions (shaped torso, muscled limbs, jaw, hands and boots), drawn slightly under life size so pitches and goals read right, and smaller again on the 5 v 5 and 3 v 3 pitches.
+
 Receivers hold their spot and come short to meet the ball instead of drifting away from it; runners making a run are played into their path. Passes, first touches, shots, skills, tackles, throw-ins, jockeying, shielding, keeper catches and goal celebrations all have their own animations, and each player has their own skin tone, hairstyle and facial hair.
 
 The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right corner, Pass (blue) to its left, Through (yellow) above Pass and Shoot (red) above Sprint & Skill, with the joystick on the left. Buttons can be dragged to new positions and resized from the pause menu (Edit button layout).
@@ -47,10 +49,15 @@ Outfield players have PAC, SHO, PAS, DRI, DEF and PHY; keepers have DIV, HAN, KI
 ### Online 1v1
 
 1. Both players open the site and pick a club.
-2. One player taps **Create room** and sends the 5-character code.
-3. The other taps **Join with a code** and enters it. The host taps **Kick off**.
+2. One player taps **Online → Create room**, then **Copy invite link** (or sends the 5-character code).
+3. The friend opens the link (it joins the room automatically) or taps **Join with a code**. The host taps **Kick off**.
 
-Online play connects the two devices directly through [PeerJS](https://peerjs.com/) (free public signalling server, no account needed). The host runs the match, so the host should keep the game open on screen. Some strict networks (certain mobile carriers or school/office Wi-Fi) block direct connections; if joining hangs, try another network.
+Two connections run side by side, and either one is enough:
+
+- a **direct link** between the two devices through [PeerJS](https://peerjs.com/) (WebRTC), which has the least delay and keeps retrying until it connects;
+- a **relay** through free public MQTT brokers (`broker.emqx.io`, `broker.hivemq.com`) for networks that block direct links. It also keeps the room alive if a phone briefly goes to the background, for example while sharing the code.
+
+The room screen shows which one is in use. The host runs the match, so the host should keep the game open on screen. Game state and nicknames pass through the public relay when it's in use, so don't put anything private in your nickname.
 
 ## Deploy to Vercel
 

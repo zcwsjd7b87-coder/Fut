@@ -149,6 +149,9 @@ input.code{flex:1;min-width:0;background:var(--deep);border:1px solid var(--line
 .who.me{color:var(--gold)}.who.fr{color:var(--cyan)}
 .lobby-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
 .lobby-actions .status{color:var(--soft)}
+.share-row{display:flex;gap:8px;flex-wrap:wrap}
+.linkline{display:flex;align-items:center;gap:8px;color:var(--mist);font-size:14px;margin-top:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:#F06A5A;flex:none}.dot.ok{background:#5BD37B}.dot.mid{background:#E9B949}
 
 /* match */
 #game{position:fixed;inset:0;background:#123A22;touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;z-index:30}
@@ -1981,9 +1984,18 @@ var RCL3D = (function () {
 
     // ---------- players ----------
     const capsule = (r, len) => (THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(r, len, 4, 10) : new THREE.CylinderGeometry(r, r, len + 2 * r, 10));
+    // smooth body parts turned from a profile: [radius, position along the part from 0 (top) to 1 (bottom)]
+    const turned = (len, prof, seg, open) => {
+      const pts = [];
+      if (!open) pts.push(new THREE.Vector2(0.001, -len));
+      for (let i = prof.length - 1; i >= 0; i--) pts.push(new THREE.Vector2(prof[i][0], -prof[i][1] * len));
+      if (!open) pts.push(new THREE.Vector2(0.001, 0));
+      return new THREE.LatheGeometry(pts, seg || 12);
+    };
     const G = {
-      // tapered torso: wide shoulders, narrower waist; flattened front-to-back
-      torso: new THREE.CylinderGeometry(0.235, 0.175, 0.58, 20, 1), pelvis: new THREE.CylinderGeometry(0.17, 0.16, 0.2, 16),
+      // torso shaped like a body: hips, waist, ribcage, chest and sloping shoulders, flattened front to back
+      torso: new THREE.LatheGeometry([[0.001, -0.3], [0.158, -0.3], [0.164, -0.22], [0.156, -0.1], [0.168, 0.0], [0.195, 0.1], [0.214, 0.17], [0.218, 0.22], [0.195, 0.262], [0.135, 0.288], [0.07, 0.298], [0.001, 0.3]].map(v => new THREE.Vector2(v[0], v[1])), 24),
+      pelvis: new THREE.LatheGeometry([[0.001, -0.1], [0.15, -0.1], [0.168, -0.04], [0.166, 0.04], [0.156, 0.1], [0.001, 0.1]].map(v => new THREE.Vector2(v[0], v[1])), 20),
       shoulder: new THREE.SphereGeometry(0.085, 12, 10), collar: new THREE.TorusGeometry(0.07, 0.018, 6, 16),
       head: new THREE.SphereGeometry(0.118, 18, 14), neck: new THREE.CylinderGeometry(0.052, 0.058, 0.11, 10),
       hairCap: new THREE.SphereGeometry(0.126, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5),
@@ -1994,14 +2006,20 @@ var RCL3D = (function () {
       afro: new THREE.SphereGeometry(0.165, 16, 12), bunKnot: new THREE.SphereGeometry(0.05, 10, 8), mohawk: new THREE.BoxGeometry(0.17, 0.05, 0.035), quiff: new THREE.BoxGeometry(0.07, 0.05, 0.16),
       fringe: new THREE.BoxGeometry(0.04, 0.035, 0.19), curl: new THREE.SphereGeometry(0.045, 8, 6), longBack: new THREE.CylinderGeometry(0.12, 0.13, 0.22, 14, 1, true, Math.PI * 0.55, Math.PI * 0.9),
       beard: new THREE.SphereGeometry(0.121, 16, 10, Math.PI * 1.15, Math.PI * 0.7 + 0.4, Math.PI * 0.55, Math.PI * 0.32), goatee: new THREE.BoxGeometry(0.03, 0.045, 0.05),
-      uarm: capsule(0.052, 0.21), larm: capsule(0.044, 0.2), hand: new THREE.SphereGeometry(0.048, 8, 6),
-      short: new THREE.CylinderGeometry(0.098, 0.088, 0.22, 12), thigh: capsule(0.074, 0.26), shin: capsule(0.06, 0.3),
-      sock: new THREE.CylinderGeometry(0.064, 0.056, 0.26, 10), boot: new THREE.BoxGeometry(0.25, 0.075, 0.1)
+      // limbs with real muscle shape: deltoid and bicep, forearm, thigh, calf, narrow wrists and ankles
+      uarm: turned(0.31, [[0.03, 0], [0.05, 0.06], [0.054, 0.3], [0.05, 0.55], [0.042, 0.85], [0.036, 0.97], [0.02, 1]]),
+      larm: turned(0.27, [[0.025, 0], [0.042, 0.06], [0.046, 0.25], [0.038, 0.6], [0.03, 0.92], [0.018, 1]]),
+      hand: new THREE.SphereGeometry(0.045, 10, 8), jaw: new THREE.SphereGeometry(0.085, 14, 10),
+      short: new THREE.CylinderGeometry(0.094, 0.09, 0.24, 14, 1, true),
+      thigh: turned(0.48, [[0.04, 0], [0.085, 0.05], [0.09, 0.22], [0.08, 0.55], [0.062, 0.85], [0.052, 0.96], [0.03, 1]]),
+      shin: turned(0.43, [[0.03, 0], [0.052, 0.05], [0.064, 0.28], [0.06, 0.42], [0.045, 0.72], [0.036, 0.94], [0.02, 1]]),
+      sock: turned(0.43, [[0.06, 0.12], [0.069, 0.28], [0.065, 0.42], [0.05, 0.72], [0.042, 0.98]], 12, true),
+      boot: (THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.042, 0.16, 4, 10) : new THREE.CylinderGeometry(0.045, 0.045, 0.25, 10))
     };
-    G.torso.scale(0.62, 1, 1);
-    for (const k of ['uarm', 'larm']) G[k].translate(0, -0.155, 0);
-    G.thigh.translate(0, -0.24, 0); G.shin.translate(0, -0.21, 0); G.short.translate(0, -0.1, 0); G.sock.translate(0, -0.24, 0);
-    G.boot.translate(0.05, -0.04, 0); G.collar.rotateX(Math.PI / 2);
+    G.torso.scale(0.6, 1, 1);
+    G.short.translate(0, -0.11, 0);
+    G.boot.rotateZ(Math.PI / 2); G.boot.scale(1, 0.85, 1.12); G.boot.translate(0.045, -0.015, 0); G.collar.rotateX(Math.PI / 2);
+    G.hand.scale(0.75, 1.15, 0.5); G.jaw.scale(0.95, 0.75, 1.05);
     const matCache = {};
     const lam = c => matCache[c] || (matCache[c] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.78, metalness: 0, envMapIntensity: 0.6 }));
     // skin and hair use true sRGB tones (converted to linear) so the different complexions read correctly
@@ -2058,10 +2076,11 @@ var RCL3D = (function () {
           mesh(G.pelvis, shortsM, body, 0, 0.93, 0).scale.set(0.75, 1, 1.05);
           const torso = mesh(G.torso, shirtM, body, 0, 1.3, 0);
           mesh(G.collar, trim, body, 0.0, 1.6, 0);
-          mesh(G.shoulder, sleeve, body, 0, 1.52, -0.215); mesh(G.shoulder, sleeve, body, 0, 1.52, 0.215);
+          mesh(G.shoulder, sleeve, body, 0, 1.53, -0.205).scale.set(0.95, 0.9, 1.05); mesh(G.shoulder, sleeve, body, 0, 1.53, 0.205).scale.set(0.95, 0.9, 1.05);
           mesh(G.neck, skin, body, 0, 1.63, 0);
-          const headG = new THREE.Group(); headG.position.set(0, 1.75, 0); body.add(headG);
-          mesh(G.head, skin, headG, 0, 0, 0).scale.set(1.0, 1.08, 0.92);
+          const headG = new THREE.Group(); headG.position.set(0, 1.74, 0); headG.scale.setScalar(0.9); body.add(headG);
+          mesh(G.head, skin, headG, 0, 0, 0).scale.set(0.98, 1.08, 0.88);
+          mesh(G.jaw, skin, headG, 0.025, -0.062, 0);
           mesh(G.ear, skin, headG, -0.01, -0.005, -0.112); mesh(G.ear, skin, headG, -0.01, -0.005, 0.112);
           // face: eyes, brows, nose, mouth (the head faces +x)
           for (const zz of [-0.042, 0.042]) { mesh(G.eye, dark, headG, 0.104, 0.018, zz); mesh(G.brow, hair, headG, 0.108, 0.048, zz); }
@@ -2085,16 +2104,19 @@ var RCL3D = (function () {
             mesh(geoB, matB, b, 0, 0, 0);
             return [a, b];
           };
-          const [shL, elL] = limb(0, 1.52, -0.25, G.uarm, sleeve, G.larm, skin, -0.3);
-          const [shR, elR] = limb(0, 1.52, 0.25, G.uarm, sleeve, G.larm, skin, -0.3);
-          mesh(G.hand, skin, elL, 0, -0.29, 0); mesh(G.hand, skin, elR, 0, -0.29, 0);
-          const [hipL, knL] = limb(0, 0.9, -0.1, G.thigh, skin, G.shin, skin, -0.46);
-          const [hipR, knR] = limb(0, 0.9, 0.1, G.thigh, skin, G.shin, skin, -0.46);
+          const [shL, elL] = limb(0, 1.52, -0.245, G.uarm, skin, G.larm, skin, -0.3);
+          const [shR, elR] = limb(0, 1.52, 0.245, G.uarm, skin, G.larm, skin, -0.3);
+          // short sleeves over the upper arm
+          for (const a of [shL, shR]) { const sl = mesh(G.short, sleeve, a, 0, 0.03, 0); sl.scale.set(0.6, 0.62, 0.6); }
+          mesh(G.hand, skin, elL, 0, -0.3, 0); mesh(G.hand, skin, elR, 0, -0.3, 0);
+          const [hipL, knL] = limb(0, 0.9, -0.098, G.thigh, skin, G.shin, skin, -0.46);
+          const [hipR, knR] = limb(0, 0.9, 0.098, G.thigh, skin, G.shin, skin, -0.46);
           mesh(G.short, shortsM, hipL, 0, 0.02, 0); mesh(G.short, shortsM, hipR, 0, 0.02, 0);
-          mesh(G.sock, sockM, knL, 0, -0.04, 0); mesh(G.sock, sockM, knR, 0, -0.04, 0);
+          mesh(G.sock, sockM, knL, 0, 0, 0); mesh(G.sock, sockM, knR, 0, 0, 0);
           mesh(G.boot, bootM, knL, 0, -0.43, 0); mesh(G.boot, bootM, knR, 0, -0.43, 0);
-          if (gk) { const gl = lam('#F2F2EE'); mesh(G.hand, gl, elL, 0, -0.29, 0).scale.setScalar(1.45); mesh(G.hand, gl, elR, 0, -0.29, 0).scale.setScalar(1.45); }
-          root.scale.setScalar(0.96 + (hsh % 9) * 0.01);
+          if (gk) { const gl = lam('#F2F2EE'); mesh(G.hand, gl, elL, 0, -0.3, 0).scale.setScalar(1.25); mesh(G.hand, gl, elR, 0, -0.3, 0).scale.setScalar(1.25); }
+          // a touch under life size so the pitch and goals read right; smaller still on the small-sided pitches
+          root.scale.setScalar((FL < 60 ? 0.8 : 0.9) * (gk ? 0.96 : 1) * (0.96 + (hsh % 9) * 0.01));
           if (pl.phy) { const w = 0.9 + (pl.phy - 60) * 0.004; torso.scale.set(1, 1, w); }
           scene.add(root);
           rigs.push({ root, body, torso, headG, shL, elL, shR, elR, hipL, knL, hipR, knR, phase: Math.random() * 6, speed: 0, px: null, pz: null, act: '', actStart: 0, side: 0, gk, cad: gait.cad, armK: gait.armK, handsHips: gait.handsHips });
@@ -3402,63 +3424,180 @@ var RCL3D = (function () {
     if (window.claude && typeof window.claude.use === 'function') {
       try { r = await window.claude.use('room'); } catch (e) { r = null; }
       NET.kind = 'claude';
-    } else if (typeof PeerCtor() === 'function') { r = peerRoom(); NET.kind = 'peer'; }
+    } else if (typeof WebSocket === 'function') { r = hybridRoom(); NET.kind = 'peer'; }
     NET.room = r; NET.state = r ? 'ready' : 'off';
     if (!$('#scr-online').hidden) renderOnline();
+    let inv = null; try { inv = new URLSearchParams(location.search).get('room'); } catch (e) { inv = null; }
+    inv = inv ? inv.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    if (r && NET.kind === 'peer' && inv.length === 5 && !running) {
+      try { const q = new URLSearchParams(location.search); q.delete('room'); const qs = q.toString(); history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '')); } catch (e) { /* ignore */ }
+      setTimeout(() => { S.mode = 'online'; show('scr-online'); renderOnline(); enterRoom(inv, 'guest'); }, 0);
+    }
   })();
   function PeerCtor() { return window.Peer || (window.peerjs && window.peerjs.Peer) || null; }
   // Direct phone-to-phone rooms through PeerJS, used when the page runs outside claude.ai.
-  function peerRoom() {
+  // ---------- online play outside claude.ai ----------
+  // Two links run side by side and either one is enough:
+  //  - a direct phone-to-phone link (WebRTC through PeerJS) for the lowest delay, which keeps retrying, and
+  //  - a relay through public MQTT-over-WebSocket brokers, which works on networks that block direct links
+  //    and survives a phone briefly going to the background (for example while sharing the room code).
+  const RELAYS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+  const ICE = { iceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+    { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }
+  ] };
+  // a small MQTT 3.1.1 client (QoS 0) over WebSocket that reconnects on its own
+  function mqttLink(url, onMsg, onState) {
+    const te = new TextEncoder(), td = new TextDecoder(), subs = new Set();
+    let ws = null, up = false, closed = false, timer = 0, ping = 0, backoff = 800, pid = 1, buf = new Uint8Array(0);
+    const vlen = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); if (n > 0) d |= 128; o.push(d); } while (n > 0); return o; };
+    const str = t => { const u = te.encode(t); return [u.length >> 8, u.length & 255].concat(Array.from(u)); };
+    const frame = (h, body) => { const L = vlen(body.length), out = new Uint8Array(1 + L.length + body.length); out[0] = h; out.set(L, 1); out.set(body, 1 + L.length); return out; };
+    const state = v => { if (up !== v) { up = v; try { onState(v); } catch (e) { /* listener */ } } };
+    const subscribe = t => { try { ws.send(frame(0x82, [pid >> 8 & 255, pid & 255].concat(str(t), [0]))); } catch (e) { /* closed */ } pid = pid % 60000 + 1; };
+    function retry() { if (closed) return; clearTimeout(timer); timer = setTimeout(open, backoff); backoff = Math.min(8000, backoff * 1.7); }
+    function drop(sock) { if (sock !== ws) return; ws = null; clearInterval(ping); state(false); retry(); }
+    function open() {
+      if (closed || ws) return;
+      let sock; try { sock = new WebSocket(url, ['mqtt']); } catch (e) { retry(); return; }
+      ws = sock; sock.binaryType = 'arraybuffer'; buf = new Uint8Array(0);
+      const guard = setTimeout(() => { if (ws === sock && !up) { try { sock.close(); } catch (e) { /* ignore */ } drop(sock); } }, 7000);
+      sock.onopen = () => sock.send(frame(0x10, str('MQTT').concat([4, 2, 0, 40], str('sf' + Math.random().toString(36).slice(2, 12)))));
+      sock.onmessage = ev => {
+        const d = new Uint8Array(ev.data), nb = new Uint8Array(buf.length + d.length); nb.set(buf); nb.set(d, buf.length); buf = nb;
+        for (;;) {
+          if (buf.length < 2) break;
+          let mul = 1, len = 0, i = 1, b;
+          do { if (i >= buf.length) return; b = buf[i++]; len += (b & 127) * mul; mul *= 128; } while (b & 128);
+          if (buf.length < i + len) break;
+          const type = buf[0] >> 4, qos = (buf[0] >> 1) & 3, body = buf.subarray(i, i + len);
+          if (type === 2) { if (body[1] === 0) { clearTimeout(guard); backoff = 800; state(true); subs.forEach(subscribe); clearInterval(ping); ping = setInterval(() => { try { sock.send(new Uint8Array([0xC0, 0])); } catch (e) { /* closed */ } }, 20000); } else { try { sock.close(); } catch (e) { /* ignore */ } } }
+          else if (type === 3) { const tl = (body[0] << 8) | body[1], off = 2 + tl + (qos ? 2 : 0); try { onMsg(td.decode(body.subarray(2, 2 + tl)), td.decode(body.subarray(off))); } catch (e) { /* bad message */ } }
+          buf = buf.slice(i + len);
+        }
+      };
+      sock.onclose = () => { clearTimeout(guard); drop(sock); };
+      sock.onerror = () => { try { sock.close(); } catch (e) { /* ignore */ } };
+    }
+    open();
+    return {
+      get up() { return up; },
+      sub(t) { subs.add(t); if (up) subscribe(t); },
+      pub(t, text) {
+        if (!up || !ws) return false;
+        const tb = str(t), pb = te.encode(text), body = new Uint8Array(tb.length + pb.length); body.set(tb); body.set(pb, tb.length);
+        try { ws.send(frame(0x30, body)); return true; } catch (e) { return false; }
+      },
+      wake() { if (!ws && !closed) { clearTimeout(timer); backoff = 800; open(); } },
+      close() { closed = true; clearTimeout(timer); clearInterval(ping); try { if (ws) ws.close(); } catch (e) { /* ignore */ } ws = null; }
+    };
+  }
+  function hybridRoom() {
     return {
       join(name, opts) {
-        const role = opts && opts.role, onFail = (opts && opts.onFail) || (() => {});
+        const role = opts && opts.role === 'host' ? 'host' : 'guest', want = role === 'host' ? 'guest' : 'host';
+        const onStatus = (opts && opts.onStatus) || (() => {});
+        const myId = Math.random().toString(36).slice(2, 10);
         return new Promise((resolve, reject) => {
-          let my = {}, otherP = null, conn = null, snap = [], opened = false;
-          const subs = new Set();
+          let my = {}, otherP = null, otherId = '', otherQ = 0, lastSeen = 0, seq = 0, snap = [], left = false, settled = false;
+          let peer = null, conn = null, connT = 0, lastRelay = 0, relayTimer = 0;
+          const subs = new Set(), relays = [];
+          const now = () => performance.now();
+          const alive = () => !!otherP && now() - lastSeen < 6500;
+          const direct = () => !!(conn && conn.open);
+          const relayUp = () => relays.some(r => r.up);
+          const status = () => ({ direct: direct(), relay: relayUp(), friend: alive() });
+          let lastStatus = '';
           const emit = () => {
             snap = Object.freeze([{ peer: 'me', isMe: true, sameTab: true, presence: Object.freeze(my) }]
-              .concat(conn && conn.open && otherP ? [{ peer: 'friend', isMe: false, sameTab: false, presence: otherP }] : []));
+              .concat(alive() ? [{ peer: 'friend', isMe: false, sameTab: false, presence: otherP }] : []));
             subs.forEach(f => { try { f({ peers: snap, joined: [], left: [], updated: [] }); } catch (e) { /* listener error */ } });
+            const st = JSON.stringify(status()); if (st !== lastStatus) { lastStatus = st; try { onStatus(status()); } catch (e) { /* listener */ } }
           };
+          const settle = ok => { if (settled) return; settled = true; if (ok) resolve(api); else reject({ code: 'offline' }); };
+          const receive = m => {
+            if (left || !m || m.r !== want || typeof m.p !== 'object' || !m.p || typeof m.id !== 'string') return;
+            if (m.id !== otherId) { otherId = m.id; otherQ = 0; setTimeout(() => send(true), 0); } // someone new: say hello straight back
+            if (!(m.q > otherQ)) return;
+            otherQ = m.q; otherP = Object.freeze(m.p); lastSeen = now(); emit();
+          };
+          const topicIn = 'senpai-football/v1/' + name + '/' + want, topicOut = 'senpai-football/v1/' + name + '/' + role;
+          function relaySend(text) { lastRelay = now(); for (const r of relays) r.pub(topicOut, text); }
+          function send(force) {
+            if (left) return;
+            const text = JSON.stringify({ r: role, id: myId, q: ++seq, p: my });
+            if (direct()) { try { conn.send(text); } catch (e) { /* closed */ } }
+            if (force || !direct()) {
+              // over the relay, send at most about 16 updates a second, always the latest state
+              const wait = 60 - (now() - lastRelay);
+              if (force || wait <= 0) { clearTimeout(relayTimer); relayTimer = 0; relaySend(text); }
+              else if (!relayTimer) relayTimer = setTimeout(() => { relayTimer = 0; relaySend(JSON.stringify({ r: role, id: myId, q: ++seq, p: my })); }, wait);
+            }
+          }
+          for (const url of RELAYS) {
+            const r = mqttLink(url, (t, text) => { if (t === topicIn) { let m = null; try { m = JSON.parse(text); } catch (e) { /* ignore */ } receive(m); } },
+              upNow => { if (upNow) { settle(true); send(true); } emit(); });
+            r.sub(topicIn); relays.push(r);
+          }
+          // direct link
           const wire = c => {
-            conn = c;
-            c.on('open', () => { try { c.send({ p: my }); } catch (e) { /* closed */ } emit(); });
-            c.on('data', d => { if (d && typeof d === 'object' && d.p && typeof d.p === 'object') { otherP = Object.freeze(d.p); emit(); } });
-            c.on('close', () => { if (conn === c) { conn = null; otherP = null; emit(); } });
-            c.on('error', () => {});
+            if (conn && conn !== c) { try { conn.close(); } catch (e) { /* ignore */ } }
+            conn = c; connT = now();
+            c.on('open', () => { send(true); emit(); });
+            c.on('data', d => { let m = d; if (typeof d === 'string') { try { m = JSON.parse(d); } catch (e) { m = null; } } receive(m); });
+            c.on('close', () => { if (conn === c) { conn = null; emit(); } });
+            c.on('error', () => { if (conn === c) { conn = null; emit(); } });
           };
-          let peer;
-          const P = PeerCtor();
-          try { peer = role === 'host' ? new P(name) : new P(); } catch (e) { reject({ code: 'upstream_error' }); return; }
+          function makePeer() {
+            const P = PeerCtor(); if (!P || left) return;
+            try { peer = role === 'host' ? new P(name, { config: ICE }) : new P({ config: ICE }); } catch (e) { peer = null; return; }
+            const me = peer;
+            me.on('open', () => { if (me === peer) { settle(true); if (role === 'guest') tryConnect(); } });
+            me.on('connection', c => { if (role === 'host') { if (direct()) { c.on('open', () => c.close()); return; } wire(c); } });
+            me.on('disconnected', () => { setTimeout(() => { if (me === peer && !left && me.disconnected && !me.destroyed) { try { me.reconnect(); } catch (e) { /* retry below */ } } }, 1500); });
+            me.on('error', e => {
+              const t = e && e.type;
+              if (t === 'peer-unavailable') return; // the host isn't registered (yet); keep trying
+              if (t === 'unavailable-id' || t === 'server-error' || t === 'socket-error' || t === 'network' || t === 'socket-closed') {
+                // the signalling server lost us (often after the phone slept): start over in a moment
+                setTimeout(() => { if (me === peer && !left) { try { me.destroy(); } catch (x) { /* ignore */ } peer = null; makePeer(); } }, 3000);
+              }
+            });
+          }
+          function tryConnect() {
+            if (left || role !== 'guest' || !peer || peer.disconnected || peer.destroyed || direct()) return;
+            if (conn && now() - connT < 6000) return; // still trying
+            try { wire(peer.connect(name, { reliable: true, serialization: 'raw' })); } catch (e) { /* retry later */ }
+          }
+          makePeer();
+          const beat = setInterval(() => {
+            if (left) return;
+            send(true); emit(); tryConnect();
+            if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) { /* ignore */ } }
+          }, 1000);
+          const wake = () => { if (document.visibilityState === 'visible' && !left) { relays.forEach(r => r.wake()); if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) { /* ignore */ } } send(true); } };
+          document.addEventListener('visibilitychange', wake);
+          setTimeout(() => settle(relayUp() || !!(peer && peer.open)), 12000);
           const api = {
             name,
             presence(patch) {
               const n = Object.assign({}, my);
               for (const k in patch) { if (patch[k] === null) delete n[k]; else n[k] = patch[k]; }
-              my = n; emit();
-              if (conn && conn.open) { try { conn.send({ p: my }); } catch (e) { /* closed */ } }
+              my = n; send(false); emit();
               return Promise.resolve();
             },
             peers: () => snap,
+            status,
             onPeers(f) { subs.add(f); setTimeout(emit, 0); return () => subs.delete(f); },
-            leave() { try { peer.destroy(); } catch (e) { /* ignore */ } return Promise.resolve(); }
+            leave() {
+              left = true; clearInterval(beat); clearTimeout(relayTimer); document.removeEventListener('visibilitychange', wake);
+              try { if (conn) conn.close(); } catch (e) { /* ignore */ }
+              try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
+              relays.forEach(r => r.close());
+              return Promise.resolve();
+            }
           };
-          peer.on('open', () => {
-            opened = true;
-            if (role === 'guest') wire(peer.connect(name, { reliable: true }));
-            resolve(api);
-          });
-          peer.on('connection', c => {
-            if (conn && conn.open) { c.on('open', () => c.close()); return; }
-            wire(c);
-          });
-          peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { /* ignore */ } });
-          peer.on('error', e => {
-            const t = e && e.type;
-            if (!opened) { reject({ code: t === 'unavailable-id' ? 'taken' : 'upstream_error' }); try { peer.destroy(); } catch (x) { /* ignore */ } return; }
-            if (t === 'peer-unavailable') onFail('No room found with that code. Check it with your friend, and make sure their room is still open.');
-            else if (t === 'network' || t === 'server-error' || t === 'socket-error') onFail('Lost the connection to the online service. Leave the room and try again.');
-          });
         });
       }
     };
@@ -3472,7 +3611,9 @@ var RCL3D = (function () {
   async function enterRoom(code, role) {
     NET.err = '';
     try {
-      const nr = await NET.room.join('rcl-' + code, { role, onFail: m => { NET.err = m; if (!running) renderOnline(); } });
+      NET.link = null; NET.joinedAt = performance.now();
+      const nr = await NET.room.join('rcl-' + code, { role, onFail: m => { NET.err = m; if (!running) renderOnline(); },
+        onStatus: st => { NET.link = st; if (NET.named && !running && !$('#scr-online').hidden) renderOnline(); } });
       NET.named = nr; NET.role = role; NET.code = code;
       await nr.presence(role === 'host' ? { r: 'h', t: S.my, nk: S.nick, ph: 'lobby', hs: S.halfMin * 60, md: S.size } : { r: 'g', t: S.my, nk: S.nick }).catch(() => {});
       NET.unsub = nr.onPeers(onRoomChange, e => { NET.err = 'The connection to the room dropped (' + (e && e.code || 'error') + '). Leave and create a new room.'; if (!running) renderOnline(); });
@@ -3480,6 +3621,7 @@ var RCL3D = (function () {
       NET.named = null; NET.role = null;
       NET.err = (e && e.code === 'not_permitted') ? 'Online rooms are not available for you on this page.'
         : (e && e.code === 'taken') ? 'That room code is already in use. Create the room again for a new code.'
+        : (e && e.code === 'offline') ? 'Could not reach the online service. Check your internet connection and try again.'
         : 'Could not open the room (' + (e && e.code || 'error') + '). Check your connection and try again.';
     }
     renderOnline();
@@ -3490,6 +3632,7 @@ var RCL3D = (function () {
     NET.unsub = null; NET.named = null; NET.role = null; NET.code = ''; NET.lastInp = '';
   }
   let lobbySig = '';
+  setInterval(() => { if (NET.named && NET.role === 'guest' && !running && !$('#scr-online').hidden && !other()) renderOnline(); }, 5000);
   function onRoomChange() {
     if (NET.role === 'guest' && !running) {
       const hp = other();
@@ -3524,10 +3667,11 @@ var RCL3D = (function () {
       const o = other();
       const isHost = NET.role === 'host';
       const oSq = o && SQ[o.presence.t] ? o.presence.t : null;
-      html += `<div class="card lobby"><div class="lobby-top"><div><p class="eyebrow">Room code${isHost ? ' · send this to your friend' : ''}</p><div class="roomcode" id="roomCode">${esc(NET.code.toUpperCase())}</div></div>${isHost ? '<button class="btn ghost" type="button" id="copyCode">Copy code</button>' : ''}</div>
+      html += `<div class="card lobby"><div class="lobby-top"><div><p class="eyebrow">Room code${isHost ? ' · send this to your friend' : ''}</p><div class="roomcode" id="roomCode">${esc(NET.code.toUpperCase())}</div></div>${isHost ? `<div class="share-row"><button class="btn ghost" type="button" id="copyCode">Copy code</button>${NET.kind === 'peer' ? '<button class="btn ghost" type="button" id="copyLink">Copy invite link</button>' : ''}</div>` : ''}</div>
         <div class="vs">${sideCard('You' + (isHost ? ' · home' : ' · away'), 'me', S.my, S.nick)}<span class="vs-x">vs</span>${sideCard('Friend' + (isHost ? ' · away' : ' · home'), 'fr', oSq, o ? cleanNick(o.presence.nk) : '')}</div>
         ${isHost ? `<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:16px 26px"><div><span class="opt-label" id="osizeL">Match type</span><div class="seg" role="group" aria-labelledby="osizeL" id="osizeSeg">${[11, 5, 3].map(v => `<button type="button" data-v="${v}" aria-pressed="${S.size === v}">${sizeName(v)}</button>`).join('')}</div></div><div><span class="opt-label" id="olenL">Half length</span><div class="seg" role="group" aria-labelledby="olenL" id="olenSeg">${[2, 3, 5].map(m => `<button type="button" data-v="${m}" aria-pressed="${S.halfMin === m}">${m} min</button>`).join('')}</div></div></div>` : `<p class="status" style="margin-top:14px">${o && [3, 5, 11].includes(o.presence.md) ? 'Match type: ' + sizeName(o.presence.md) : ''}</p>`}
-        <div class="lobby-actions">${isHost ? `<button class="cta" type="button" id="kickBtn" ${oSq ? '' : 'disabled'}>Kick off</button><span class="status">${oSq ? 'Your friend is here. Kick off when you are both ready.' : 'Waiting for your friend to join with the code.'}</span>` : `<span class="status">${o ? 'Connected. The host starts the match.' : 'Looking for the host… check the code is right.'}</span>`}<button class="btn ghost" type="button" id="leaveBtn">Leave room</button></div></div>`;
+        <div class="lobby-actions">${isHost ? `<button class="cta" type="button" id="kickBtn" ${oSq ? '' : 'disabled'}>Kick off</button><span class="status">${oSq ? 'Your friend is here. Kick off when you are both ready.' : 'Waiting for your friend to join with the code.'}</span>` : `<span class="status">${o ? 'Connected. The host starts the match.' : performance.now() - (NET.joinedAt || 0) > 10000 ? 'Still looking for the host. Check the code, and ask your friend to keep the game open on screen.' : 'Looking for the host…'}</span>`}<button class="btn ghost" type="button" id="leaveBtn">Leave room</button></div>
+        ${NET.kind === 'peer' && NET.link ? `<p class="linkline"><i class="dot ${NET.link.direct ? 'ok' : NET.link.relay ? 'mid' : 'bad'}"></i>${NET.link.direct ? 'Direct link to your friend' : NET.link.relay ? (o ? 'Connected through the relay (a little more delay)' : 'Online, waiting for your friend') : 'Connecting to the online service…'}</p>` : ''}</div>`;
     }
     if (NET.err) html += `<p class="err" role="alert">${esc(NET.err)}</p>`;
     body.innerHTML = html;
@@ -3538,6 +3682,11 @@ var RCL3D = (function () {
       const raw = $('#joinCode').value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
       if (raw.length !== 5) { NET.err = 'Room codes have 5 characters. Check the code your friend sent.'; renderOnline(); return; }
       enterRoom(raw, 'guest');
+    };
+    const cl = $('#copyLink'); if (cl) cl.onclick = () => {
+      const url = location.origin + location.pathname + '?room=' + NET.code.toUpperCase();
+      const done = () => { cl.textContent = 'Link copied'; setTimeout(() => { if (cl.isConnected) cl.textContent = 'Copy invite link'; }, 1500); };
+      try { if (navigator.share && /Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) navigator.share({ title: 'Senpai Football', text: 'Play me in Senpai Football · room ' + NET.code.toUpperCase(), url }).catch(() => {}); else navigator.clipboard.writeText(url).then(done, () => {}); } catch (e) { /* not available */ }
     };
     const cc = $('#copyCode'); if (cc) cc.onclick = () => {
       const t = NET.code.toUpperCase();
@@ -3622,12 +3771,15 @@ var RCL3D = (function () {
     const N = G.N;
     if (!s || !Array.isArray(s.p) || s.p.length !== N * 2 || !Array.isArray(s.b)) return;
     const num = v => { v = +v; return Number.isFinite(v) ? v : 0; };
+    const tnow = performance.now() / 1000, sdt = clamp(tnow - (G.snapT || tnow - 0.033), 0.02, 0.3); G.snapT = tnow;
     for (let i = 0; i < N; i++) {
       const p = G.P[i], nx = clamp(num(s.p[2 * i]) / 10, -5, FL + 5), ny = clamp(num(s.p[2 * i + 1]) / 10, -5, FW + 5);
       const dx = nx - p.tx, dy = ny - p.ty, d = hyp(dx, dy);
       if (d > 0.04) { p.fx = dx / d; p.fy = dy / d; }
+      // velocity estimate between snapshots, used to carry movement on smoothly until the next one arrives
+      const k = d > 8 ? 1 : 0.5; p.ex = (p.ex || 0) + (clamp(dx / sdt, -11, 11) - (p.ex || 0)) * k; p.ey = (p.ey || 0) + (clamp(dy / sdt, -11, 11) - (p.ey || 0)) * k;
       p.tx = nx; p.ty = ny;
-      if (!G.init || d > 8) { p.x = nx; p.y = ny; }
+      if (!G.init || d > 8) { p.x = nx; p.y = ny; p.ex = p.ey = 0; }
     }
     const b = G.ball;
     b.tx = clamp(num(s.b[0]) / 10, -5, FL + 5); b.ty = clamp(num(s.b[1]) / 10, -5, FW + 5); b.tz = clamp(num(s.b[2]) / 10, 0, 20);
@@ -3665,8 +3817,20 @@ var RCL3D = (function () {
         if (wasEnd && G.phase !== 'end') { G.id = ++matchSeq; closeOverlay(); }
       }
     }
-    const k = Math.min(1, dt * 14), kb = Math.min(1, dt * 18);
-    for (const p of G.P) { p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k; }
+    // Smooth the host's snapshots: carry each player on along his estimated velocity between snapshots,
+    // and show your own player slightly ahead in the direction you're steering so the controls feel immediate.
+    const k = Math.min(1, dt * 12), kb = Math.min(1, dt * 18), age = clamp(now - (G.snapT || now), 0, 0.2);
+    const lead = NET.link ? (NET.link.direct ? 0.08 : 0.22) : 0.12, mv = moveVec(), me = G.c[1];
+    for (let i = 0; i < G.P.length; i++) {
+      const p = G.P[i];
+      let gx = p.tx + (p.ex || 0) * age, gy = p.ty + (p.ey || 0) * age;
+      if (i === me && G.phase === 'play') {
+        const sp = (IN.spr || IN.kspr) ? 7.5 : 5.2;
+        p.ox = (p.ox || 0) + (-mv[0] * sp * lead - (p.ox || 0)) * Math.min(1, dt * 6); p.oy = (p.oy || 0) + (-mv[1] * sp * lead - (p.oy || 0)) * Math.min(1, dt * 6);
+        gx += p.ox; gy += p.oy;
+      } else { p.ox = p.oy = 0; }
+      p.x += (gx - p.x) * k; p.y += (gy - p.y) * k;
+    }
     const b = G.ball; b.x += (b.tx - b.x) * kb; b.y += (b.ty - b.y) * kb; b.z += (b.tz - b.z) * kb;
     if (G.owner >= 0) { const o = G.P[G.owner]; b.x = o.x + (b.tx - o.tx); b.y = o.y + (b.ty - o.ty); }
     const v = moveVec();
