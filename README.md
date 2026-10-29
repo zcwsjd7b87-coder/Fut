@@ -44,6 +44,15 @@ The default layout matches FC Mobile: Sprint & Skill (green) in the bottom-right
 - **Accuracy and height** depend on SHO, distance, the angle, too much power, pressure and shooting on the run. Finesse shots are solved so the curl brings them back inside the far post; driven shots stay low; harder shots rise.
 - **Keepers save what they can physically reach:** they react after a moment (REF), dive sideways at a speed set by DIV, and have an arm's reach. Low and high corners at full stretch are the hardest to reach, a curling shot is read late, and slow lobs give them time to get back. Keepers stand on the line that splits the angle between the ball and the posts, and come off their line to narrow the angle in one-on-ones.
 
+### Touches and animation detail
+
+- **First touch:** hold the stick as a pass arrives and the first touch takes the ball that way. High balls are brought down on the chest or thigh. Shooting a ball that arrives in the air gives a first-time volley (harder to keep on target). Headers aim like shots.
+- **Kick techniques:** side-foot passes, laces for power shots (with a little hop), inside-of-the-foot finesse, scooped chips, lofted balls and crosses leaning back, volleys with the body tilted, low driven strikes and clearances all look different. Charging a shot draws the kicking leg back.
+- **Dribbling:** players touch the ball with alternating feet as they push it on.
+- **Keepers:** set, spring and stretch out horizontally with both hands leading, overarm throws and drop-kicks, then get back up.
+- **Duels:** slide tackles go in on the hip with the lead leg at the ball, fouled players stumble and fall on their front, and anyone who goes to ground gets back up.
+- **Stadium:** the net ripples where the ball hits it, the crowd jumps on goals, and a referee follows play on a diagonal (and points back to the centre after a goal).
+
 ### Match presentation and Skip
 
 Matches open with the teams lined up side by side and the line-ups on screen, then a fly-in to kick-off. At half-time the players walk off with the score and stats on screen, then the second half opens with its own fly-in. Full-time shows the winners celebrating around the man of the match (losers with hands on heads, a draw applauded) before the result screen. Against Senpai, every goal is followed by the celebration and a slow-motion replay. **Skip** (or Enter) skips each of these; online, each player can skip their own sequences.
